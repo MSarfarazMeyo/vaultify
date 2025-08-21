@@ -52,12 +52,12 @@ export class SubscriptionManager {
     try {
       const encryptedStatus = await SecurityManager.encryptData(JSON.stringify(status));
       await SecureStore.setItemAsync(this.SUBSCRIPTION_KEY, encryptedStatus);
-      
-      SecurityManager.logSecurityEvent('subscription_updated', { 
+
+      SecurityManager.logSecurityEvent('subscription_updated', {
         plan: status.plan,
-        isActive: status.isActive 
+        isActive: status.isActive
       });
-      
+
       return true;
     } catch (error) {
       console.error('Failed to update subscription status:', error);
@@ -67,9 +67,9 @@ export class SubscriptionManager {
 
   static async activateSubscription(plan: 'monthly' | 'yearly' | 'lifetime'): Promise<boolean> {
     try {
-      const expiresAt = plan === 'lifetime' ? undefined : 
-                      plan === 'yearly' ? Date.now() + (365 * 24 * 60 * 60 * 1000) :
-                      Date.now() + (30 * 24 * 60 * 60 * 1000);
+      const expiresAt = plan === 'lifetime' ? undefined :
+        plan === 'yearly' ? Date.now() + (365 * 24 * 60 * 60 * 1000) :
+          Date.now() + (30 * 24 * 60 * 60 * 1000);
 
       const status: SubscriptionStatus = {
         isActive: true,
@@ -79,11 +79,11 @@ export class SubscriptionManager {
       };
 
       const success = await this.updateSubscriptionStatus(status);
-      
+
       if (success) {
         SecurityManager.logSecurityEvent('subscription_activated', { plan });
       }
-      
+
       return success;
     } catch (error) {
       console.error('Failed to activate subscription:', error);
@@ -110,7 +110,7 @@ export class SubscriptionManager {
   static async checkSubscriptionExpiry(): Promise<boolean> {
     try {
       const status = await this.getSubscriptionStatus();
-      
+
       if (!status.isActive || status.plan === 'lifetime') {
         return status.isActive;
       }
@@ -134,10 +134,10 @@ export class SubscriptionManager {
 
     if (isActive && status.plan !== 'free') {
       // Different storage limits based on plan
-      const cloudStorageGB = status.plan === 'monthly' ? 100 : 
-                            status.plan === 'yearly' ? 500 : 
-                            1000; // lifetime gets 1TB
-      
+      const cloudStorageGB = status.plan === 'monthly' ? 100 :
+        status.plan === 'yearly' ? 500 :
+          1000; // lifetime gets 1TB
+
       return {
         maxPhotos: -1, // Unlimited count
         maxVideos: -1, // Unlimited count  
@@ -170,16 +170,16 @@ export class SubscriptionManager {
 
   static async canCreateVault(): Promise<{ allowed: boolean; reason?: string }> {
     const limits = await this.getSubscriptionLimits();
-    
+
     if (limits.maxVaults === -1) {
       return { allowed: true };
     }
 
     const usage = await this.getUsageStats();
     if (usage.vaultCount >= limits.maxVaults) {
-      return { 
-        allowed: false, 
-        reason: `Free plan limited to ${limits.maxVaults} vaults. Upgrade to Premium for unlimited vaults and advanced security features.` 
+      return {
+        allowed: false,
+        reason: `Free plan limited to ${limits.maxVaults} vaults. Upgrade to Premium for unlimited vaults and advanced security features.`
       };
     }
 
@@ -188,16 +188,16 @@ export class SubscriptionManager {
 
   static async canAddPhoto(): Promise<{ allowed: boolean; reason?: string }> {
     const limits = await this.getSubscriptionLimits();
-    
+
     if (limits.maxPhotos === -1) {
       return { allowed: true };
     }
 
     const usage = await this.getUsageStats();
     if (usage.photoCount >= limits.maxPhotos) {
-      return { 
-        allowed: false, 
-        reason: `Free plan limited to ${limits.maxPhotos} photos. Upgrade to Premium for unlimited storage.` 
+      return {
+        allowed: false,
+        reason: `Free plan limited to ${limits.maxPhotos} photos. Upgrade to Premium for unlimited storage.`
       };
     }
 
@@ -206,16 +206,16 @@ export class SubscriptionManager {
 
   static async canAddVideo(): Promise<{ allowed: boolean; reason?: string }> {
     const limits = await this.getSubscriptionLimits();
-    
+
     if (limits.maxVideos === -1) {
       return { allowed: true };
     }
 
-    const usage = await this.getUsageStats();
+    const usage: any = await this.getUsageStats();
     if (usage.videoCount >= limits.maxVideos) {
-      return { 
-        allowed: false, 
-        reason: `Free plan limited to ${limits.maxVideos} videos. Upgrade to Premium for unlimited storage.` 
+      return {
+        allowed: false,
+        reason: `Free plan limited to ${limits.maxVideos} videos. Upgrade to Premium for unlimited storage.`
       };
     }
 
@@ -224,27 +224,26 @@ export class SubscriptionManager {
 
   static async canAddAudio(): Promise<{ allowed: boolean; reason?: string }> {
     const limits = await this.getSubscriptionLimits();
-    
+
     if (limits.maxAudio === -1) {
       return { allowed: true };
     }
 
-    const usage = await this.getUsageStats();
+    const usage: any = await this.getUsageStats();
     if (usage.audioCount >= limits.maxAudio) {
-      return { 
-        allowed: false, 
-        reason: `Free plan limited to ${limits.maxAudio} audio files. Upgrade to Premium for unlimited storage.` 
+      return {
+        allowed: false,
+        reason: `Free plan limited to ${limits.maxAudio} audio files. Upgrade to Premium for unlimited storage.`
       };
     }
 
     return { allowed: true };
   }
-  static async incrementUsage(type: 'photo' | 'vault'): Promise<void> {
-  }
+
   static async incrementUsage(type: 'photo' | 'video' | 'audio' | 'vault'): Promise<void> {
     try {
       const usage = await this.getUsageStats();
-      
+
       if (type === 'photo') {
         usage.photoCount++;
       } else if (type === 'video') {
@@ -262,12 +261,11 @@ export class SubscriptionManager {
     }
   }
 
-  static async decrementUsage(type: 'photo' | 'vault'): Promise<void> {
-  }
+
   static async decrementUsage(type: 'photo' | 'video' | 'audio' | 'vault'): Promise<void> {
     try {
       const usage = await this.getUsageStats();
-      
+
       if (type === 'photo' && usage.photoCount > 0) {
         usage.photoCount--;
       } else if (type === 'video' && usage.videoCount > 0) {
@@ -285,10 +283,7 @@ export class SubscriptionManager {
     }
   }
 
-  static async getUsageStats(): Promise<{ photoCount: number; vaultCount: number }> {
-  }
-  static async getUsageStats(): Promise<{ photoCount: number; videoCount: number; audioCount: number; vaultCount: number }> {
-  }
+
   static async getUsageStats(): Promise<{ photoCount: number; videoCount: number; audioCount: number; vaultCount: number; storageUsedGB: number }> {
     try {
       const encryptedUsage = await SecureStore.getItemAsync(this.USAGE_KEY);
@@ -326,11 +321,11 @@ export class SubscriptionManager {
 
   static async canUploadFile(fileSizeBytes: number): Promise<{ allowed: boolean; reason?: string }> {
     const limits = await this.getSubscriptionLimits();
-    
+
     if (limits.cloudStorageGB === 0) {
-      return { 
-        allowed: false, 
-        reason: 'Cloud storage not available on free plan. Upgrade to Premium for cloud backup.' 
+      return {
+        allowed: false,
+        reason: 'Cloud storage not available on free plan. Upgrade to Premium for cloud backup.'
       };
     }
 
@@ -340,9 +335,9 @@ export class SubscriptionManager {
 
     if (totalAfterUpload > limits.cloudStorageGB) {
       const remainingGB = Math.max(0, limits.cloudStorageGB - usage.storageUsedGB);
-      return { 
-        allowed: false, 
-        reason: `Not enough cloud storage. You have ${remainingGB.toFixed(2)}GB remaining of ${limits.cloudStorageGB}GB.` 
+      return {
+        allowed: false,
+        reason: `Not enough cloud storage. You have ${remainingGB.toFixed(2)}GB remaining of ${limits.cloudStorageGB}GB.`
       };
     }
 
@@ -352,11 +347,11 @@ export class SubscriptionManager {
   static async getStorageInfo(): Promise<{ used: number; total: number; percentage: number }> {
     const limits = await this.getSubscriptionLimits();
     const usage = await this.getUsageStats();
-    
+
     const used = usage.storageUsedGB;
     const total = limits.cloudStorageGB;
     const percentage = total > 0 ? (used / total) * 100 : 0;
-    
+
     return { used, total, percentage };
   }
 
@@ -398,7 +393,7 @@ export class SubscriptionManager {
   static async hasFeature(feature: string): Promise<boolean> {
     const status = await this.getSubscriptionStatus();
     const isActive = await this.checkSubscriptionExpiry();
-    
+
     if (!isActive || status.plan === 'free') {
       return false;
     }
@@ -409,7 +404,7 @@ export class SubscriptionManager {
       'advancedEncryption',
       'steganography',
       'prioritySupport',
-      'familySharing', 
+      'familySharing',
       'customThemes',
       'advancedAnalytics'
     ];
@@ -420,7 +415,7 @@ export class SubscriptionManager {
   static async hasFamilySharing(): Promise<boolean> {
     const status = await this.getSubscriptionStatus();
     const isActive = await this.checkSubscriptionExpiry();
-    
+
     return isActive && (status.plan === 'yearly' || status.plan === 'lifetime');
   }
 }

@@ -1,13 +1,24 @@
 {
   "expo": {
-    "name": "Vaultify",
+    "name": "Vaultify Secure",
     "slug": "vaultify",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "vaultify",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+
+    "splash": {
+      "image": "./assets/images/icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#000000"
+    },
+
+    "updates": {
+      "fallbackToCacheTimeout": 0
+    },
+    "assetBundlePatterns": ["**/*"],
+
     "ios": {
       "supportsTablet": true,
       "usesAppleSignIn": true,

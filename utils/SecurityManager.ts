@@ -3,7 +3,8 @@ import * as Crypto from 'expo-crypto';
 
 export interface SecurityEvent {
   id: string;
-  type: 'login_success' | 'login_failure' | 'vault_access' | 'photo_capture' | 'break_in_attempt' | 'biometric_auth_success' | 'password_auth_success' | 'failed_login_attempt' | 'vault_created' | 'vault_accessed' | 'vault_locked' | 'vault_unlocked' | 'vault_deleted' | 'photo_captured' | 'photo_imported' | 'photo_deleted' | 'duress_code_used' | 'password_changed';
+  type: 'login_success' | 'login_failure' | 'vault_access' | 'photo_capture' | 'break_in_attempt' | 'biometric_auth_success' | 'password_auth_success' | 'failed_login_attempt' | 'vault_created' | 'vault_accessed' | 'vault_locked' | 'vault_unlocked' | 'vault_deleted' | 'photo_captured' | 'photo_imported' | 'photo_deleted' | 'duress_code_used' | 'password_changed' | 'subscription_activated' | 'subscription_updated' | 'initial_setup_completed' | 'calculator_pin_changed' | 'all_data_deleted' | 'user_logout' | 'settings_updated' | 'security_level_applied' | 'cloud_backup_changed' | 'break_in_detection_changed' | 'auto_lock_changed' | 'biometric_auth_disabled' | 'biometric_auth_enabled' | 'family_subscription_activated';
+
   timestamp: number;
   details?: any;
 }
@@ -67,7 +68,7 @@ export class SecurityManager {
 
       const newHash = await this.hashPassword(newPassword);
       await SecureStore.setItemAsync(this.MASTER_PASSWORD_KEY, newHash);
-      
+
       this.logSecurityEvent('password_changed');
       return true;
     } catch (error) {
@@ -91,7 +92,7 @@ export class SecurityManager {
       if (!/^\d{4}$/.test(newPin)) {
         throw new Error('PIN must be exactly 4 digits');
       }
-      
+
       await SecureStore.setItemAsync(this.CALCULATOR_PIN_KEY, newPin);
       this.logSecurityEvent('calculator_pin_changed');
       return true;
@@ -130,7 +131,7 @@ export class SecurityManager {
       // For demo purposes, just decode the data
       // In production, use proper AES-256 decryption
       return decodeURIComponent(atob(encryptedData));
-    } catch (error) {
+    } catch (error: any) {
       console.error('Decryption failed:', error);
       throw new Error('Failed to decrypt data: ' + error.message);
     }
@@ -192,12 +193,12 @@ export class SecurityManager {
     try {
       const allEvents = await this.getSecurityEvents();
       // Filter events related to this specific vault
-      const vaultEvents = allEvents.filter(event => 
+      const vaultEvents = allEvents.filter(event =>
         event.details?.vaultId === vaultId ||
         (event.type.includes('vault') && event.details?.vaultId === vaultId) ||
         (event.type.includes('item') && event.details?.vaultId === vaultId)
       );
-      
+
       // Sort by timestamp (newest first)
       return vaultEvents.sort((a, b) => b.timestamp - a.timestamp);
     } catch (error) {
@@ -210,15 +211,15 @@ export class SecurityManager {
     try {
       const allEvents = await this.getSecurityEvents();
       // Keep only events not related to this vault
-      const filteredEvents = allEvents.filter(event => 
+      const filteredEvents = allEvents.filter(event =>
         !(event.details?.vaultId === vaultId ||
           (event.type.includes('vault') && event.details?.vaultId === vaultId) ||
           (event.type.includes('item') && event.details?.vaultId === vaultId))
       );
-      
+
       const encryptedEvents = await this.encryptData(JSON.stringify(filteredEvents));
       await SecureStore.setItemAsync(this.SECURITY_EVENTS_KEY, encryptedEvents);
-      
+
       return true;
     } catch (error) {
       console.error('Failed to clear vault activity:', error);
@@ -233,13 +234,13 @@ export class SecurityManager {
       if (vaultsData) {
         const decryptedVaults = await this.decryptData(vaultsData);
         const vaults = JSON.parse(decryptedVaults);
-        
+
         // Delete all vault data
         for (const vault of vaults) {
           await SecureStore.deleteItemAsync('vault_' + vault.id);
         }
       }
-      
+
       // Delete all main data stores
       await SecureStore.deleteItemAsync('vaults_data');
       await SecureStore.deleteItemAsync('secure_photos');
@@ -249,10 +250,10 @@ export class SecurityManager {
       await SecureStore.deleteItemAsync('auth_session');
       await SecureStore.deleteItemAsync('lockout_data');
       await SecureStore.deleteItemAsync('user_settings');
-      
+
       // Delete calculator PIN
       await SecureStore.deleteItemAsync(this.CALCULATOR_PIN_KEY);
-      
+
       this.logSecurityEvent('all_data_deleted');
       return true;
     } catch (error) {
@@ -266,13 +267,13 @@ export class SecurityManager {
       // Clear any cached authentication state
       await SecureStore.deleteItemAsync('auth_session');
       await SecureStore.deleteItemAsync('lockout_data');
-      
+
       // Log the logout event
       this.logSecurityEvent('user_logout');
-      
+
       // Set duress mode flag to show calculator on next login
       await SecureStore.setItemAsync('show_duress_mode', 'true');
-      
+
       return true;
     } catch (error) {
       console.error('Failed to logout:', error);
@@ -331,15 +332,15 @@ export class SecurityManager {
         ...settings,
         updatedAt: Date.now()
       };
-      
+
       const encryptedSettings = await this.encryptData(JSON.stringify(mergedSettings));
       await SecureStore.setItemAsync('user_settings', encryptedSettings);
-      
-      this.logSecurityEvent('settings_updated', { 
+
+      this.logSecurityEvent('settings_updated', {
         settingsKeys: Object.keys(settings),
         timestamp: Date.now()
       });
-      
+
       return true;
     } catch (error) {
       console.error('Failed to save user settings:', error);
@@ -365,7 +366,7 @@ export class SecurityManager {
         securityLevel: level,
         updatedAt: Date.now()
       };
-      
+
       return await this.saveUserSettings(updatedSettings);
     } catch (error) {
       console.error('Failed to set security level:', error);
@@ -377,7 +378,7 @@ export class SecurityManager {
     try {
       // Apply security level specific configurations
       const settings = await this.getUserSettings();
-      
+
       switch (level) {
         case 'high':
           settings.breakInDetection = true;
@@ -399,10 +400,10 @@ export class SecurityManager {
           settings.maxFailedAttempts = 10;
           break;
       }
-      
+
       // Preserve existing biometric setting
       settings.securityLevel = level;
-      
+
       await this.saveUserSettings(settings);
       this.logSecurityEvent('security_level_applied', { level, settings });
     } catch (error) {
@@ -423,7 +424,7 @@ export class SecurityManager {
       // 2. Get GPS location
       // 3. Send alert to backup email
       // 4. Temporarily lock the app
-      
+
       console.log('Break-in attempt detected and logged');
     } catch (error) {
       console.error('Failed to handle break-in attempt:', error);

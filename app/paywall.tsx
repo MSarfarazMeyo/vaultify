@@ -1,13 +1,15 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Dimensions, Animated } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Dimensions, Animated, Linking } from 'react-native';
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'expo-router';
-import { SubscriptionManager } from '@/utils/SubscriptionManager';
+import Purchases, { PurchasesPackage, PurchasesOffering, CustomerInfo } from 'react-native-purchases';
 import { Shield, Crown, Check, X, Star, Zap, Cloud, Camera, Lock, Eye, Sparkles, ArrowRight, Users, Infinity, Timer, Gift } from 'lucide-react-native';
 import SecureStore from '@/utils/secureStorage';
+import FeaturesPreview from '@/components/FeaturesPreview';
+import { SubscriptionManager } from '@/utils/SubscriptionManager';
 
 const { width, height } = Dimensions.get('window');
 
-interface SubscriptionPlan {
+interface DynamicSubscriptionPlan {
   id: string;
   name: string;
   price: string;
@@ -19,15 +21,19 @@ interface SubscriptionPlan {
   features: string[];
   storageAmount: string;
   color: string;
+  packageObject: PurchasesPackage;
 }
 
 export default function PaywallScreen() {
   const router = useRouter();
-  const [selectedPlan, setSelectedPlan] = useState<string>('yearly');
+  const [selectedPlan, setSelectedPlan] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingOfferings, setIsLoadingOfferings] = useState(true);
   const [isFirstLaunch, setIsFirstLaunch] = useState(false);
   const [showAnnualSavings, setShowAnnualSavings] = useState(true);
-  
+  const [plans, setPlans] = useState<DynamicSubscriptionPlan[]>([]);
+  const [offering, setOffering] = useState<PurchasesOffering | null>(null);
+
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
@@ -35,7 +41,7 @@ export default function PaywallScreen() {
 
   useEffect(() => {
     checkIfFirstLaunch();
-    startAnimations();
+    loadOfferings();
   }, []);
 
   const startAnimations = () => {
@@ -78,68 +84,176 @@ export default function PaywallScreen() {
     }
   };
 
-  const plans: SubscriptionPlan[] = [
-    {
-      id: 'monthly',
-      name: 'Premium Monthly',
-      price: '$6.99',
-      period: '/month',
-      storageAmount: '100GB',
-      color: '#007AFF',
-      features: [
-        'Unlimited vaults and photos',
-        '100GB cloud storage',
-        'Advanced AES-256 encryption', 
-        'Cloud backup with 2FA',
-        'Break-in photo capture',
-        'Steganography hiding',
-        'Priority support'
-      ]
-    },
-    {
-      id: 'yearly',
-      name: 'Premium Yearly',
-      price: '$39.99',
-      period: '/year',
-      originalPrice: '$83.88',
-      savings: 'Save 52%',
-      popular: true,
-      badge: 'BEST VALUE',
-      storageAmount: '500GB',
-      color: '#34C759',
-      features: [
-        'Everything in Monthly',
-        '500GB cloud storage',
-        'Best value - 7 months free',
-        'Advanced security analytics',
-        'Custom vault themes',
-        'Export to multiple formats',
-        'Family sharing (up to 5 users)',
-        'Priority customer support'
-      ]
-    },
-    {
-      id: 'lifetime',
-      name: 'Premium Lifetime',
-      price: '$89.99',
-      period: 'one-time',
-      originalPrice: '$239.99',
-      savings: 'Save 63%',
-      badge: 'LIMITED TIME',
-      storageAmount: '1TB',
-      color: '#FF9500',
-      features: [
-        'Everything in Yearly',
-        '1TB cloud storage',
-        'Lifetime access - no recurring fees',
-        'Future feature updates included',
-        'Premium customer support',
-        'Early access to new features',
-        'Unlimited device sync',
-        'Exclusive lifetime member benefits'
-      ]
+  const loadOfferings = async () => {
+    try {
+      setIsLoadingOfferings(true);
+
+      // Get current customer info to check existing subscriptions
+      const customerInfo = await Purchases.getCustomerInfo();
+
+      // Get available offerings
+      const offerings = await Purchases.getOfferings();
+
+
+
+
+      if (offerings.current) {
+        const currentOffering = offerings.current;
+        setOffering(currentOffering);
+
+        // Transform RevenueCat packages into our plan format
+        const dynamicPlans = transformPackagesToPlans(currentOffering.availablePackages);
+        setPlans([...dynamicPlans].reverse());
+
+
+        // Auto-select the most popular plan or first plan
+        const popularPlan = dynamicPlans.find(p => p.popular);
+        setSelectedPlan(popularPlan?.id || dynamicPlans[0]?.id || '');
+
+
+
+
+        return
+      } else {
+        Alert.alert(
+          'Error',
+          'No subscription plans available. Please try again later.',
+          [{ text: 'OK', onPress: () => router.back() }]
+        );
+      }
+    } catch (error) {
+      console.error('Failed to load offerings:', error);
+      Alert.alert(
+        'Error',
+        'Failed to load subscription plans. Please check your connection and try again.',
+        [{ text: 'Retry', onPress: loadOfferings }, { text: 'Cancel', onPress: () => router.back() }]
+      );
+    } finally {
+      setIsLoadingOfferings(false);
+      startAnimations();
     }
-  ];
+  };
+
+  const transformPackagesToPlans = (packages: PurchasesPackage[]): DynamicSubscriptionPlan[] => {
+    return packages.map((pkg, index) => {
+      const identifier = pkg.identifier.toLowerCase();
+      const productId = pkg.product.identifier.toLowerCase();
+
+      console.log("identifier", identifier);
+
+
+      // Determine plan type based on package identifier or product ID
+      let planType: 'monthly' | 'yearly' | 'lifetime' = 'monthly';
+      if (identifier.includes('annual') || identifier.includes('yearly') || productId.includes('yearly')) {
+        planType = 'yearly';
+      } else if (identifier.includes('lifetime') || productId.includes('lifetime')) {
+        planType = 'lifetime';
+      }
+
+      // Format price
+      const price = pkg.product.priceString;
+      const period = planType === 'lifetime' ? 'one-time' : planType === 'yearly' ? '/year' : '/month';
+
+      // Calculate savings for annual plans
+      let originalPrice: string | undefined;
+      let savings: string | undefined;
+
+      if (planType === 'yearly') {
+        // Find monthly equivalent to calculate savings
+        const monthlyPkg = packages.find(p =>
+          p.identifier.toLowerCase().includes('monthly') ||
+          p.product.identifier.toLowerCase().includes('monthly')
+        );
+
+        if (monthlyPkg) {
+          const monthlyPrice = monthlyPkg.product.price;
+          const yearlyPrice = pkg.product.price;
+          const annualEquivalent = monthlyPrice * 12;
+
+          if (yearlyPrice < annualEquivalent) {
+            originalPrice = `$${annualEquivalent.toFixed(2)}`;
+            const savingsPercent = Math.round(((annualEquivalent - yearlyPrice) / annualEquivalent) * 100);
+            savings = `Save ${savingsPercent}%`;
+          }
+        }
+      }
+
+      // Determine if this should be marked as popular (usually the yearly plan)
+      const isPopular = planType === 'yearly';
+
+      // Set colors and storage based on plan type
+      const colors = {
+        monthly: '#007AFF',
+        yearly: '#34C759',
+        lifetime: '#FF9500'
+      };
+
+      const storage = {
+        monthly: '100GB',
+        yearly: '500GB',
+        lifetime: '1TB'
+      };
+
+      const badges = {
+        monthly: undefined,
+        yearly: 'BEST VALUE',
+        lifetime: 'LIMITED TIME'
+      };
+
+      return {
+        id: pkg.identifier,
+        name: `Premium ${planType.charAt(0).toUpperCase() + planType.slice(1)}`,
+        price,
+        period,
+        originalPrice,
+        savings,
+        popular: isPopular,
+        badge: badges[planType],
+        storageAmount: storage[planType],
+        color: colors[planType],
+        packageObject: pkg,
+        features: getPlanFeatures(planType)
+      };
+    });
+  };
+
+  const getPlanFeatures = (planType: 'monthly' | 'yearly' | 'lifetime'): string[] => {
+    const baseFeatures = [
+      'Unlimited vaults and photos',
+      'Advanced AES-256 encryption',
+      'Cloud backup with 2FA',
+      'Break-in photo capture',
+      'Steganography hiding',
+      'Priority support'
+    ];
+
+    const yearlyFeatures = [
+      ...baseFeatures,
+      'Best value - 7 months free',
+      'Advanced security analytics',
+      'Custom vault themes',
+      'Export to multiple formats',
+      'Family sharing (up to 5 users)'
+    ];
+
+    const lifetimeFeatures = [
+      ...yearlyFeatures.filter(f => !f.includes('months free')),
+      'Lifetime access - no recurring fees',
+      'Future feature updates included',
+      'Early access to new features',
+      'Unlimited device sync',
+      'Exclusive lifetime member benefits'
+    ];
+
+    switch (planType) {
+      case 'yearly':
+        return yearlyFeatures;
+      case 'lifetime':
+        return lifetimeFeatures;
+      default:
+        return baseFeatures;
+    }
+  };
 
   const freeFeatures = [
     'Up to 200 photos/videos',
@@ -151,24 +265,74 @@ export default function PaywallScreen() {
 
   const handleSubscribe = async (planId: string) => {
     setIsLoading(true);
-    
+
     try {
-      await SubscriptionManager.activateSubscription(planId as 'monthly' | 'yearly' | 'lifetime');
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
       const selectedPlanData = plans.find(p => p.id === planId);
-      Alert.alert(
-        '🎉 Welcome to Premium!',
-        `Your ${selectedPlanData?.name} subscription is now active. Enjoy unlimited secure storage and advanced features!`,
-        [
-          {
-            text: 'Get Started',
-            onPress: () => router.replace('/(tabs)')
+      if (!selectedPlanData) {
+        throw new Error('Selected plan not found');
+      }
+      // Make the purchase through RevenueCat
+      const { customerInfo } = await Purchases.purchasePackage(selectedPlanData.packageObject);
+
+      // Check if the purchase was successful
+      if (customerInfo.activeSubscriptions.length > 0 || customerInfo.nonSubscriptionTransactions.length > 0) {
+        // Mark that user has seen paywall
+        await SecureStore.setItemAsync('has_seen_paywall', 'true');
+
+        try {
+          const identifier = selectedPlanData?.packageObject.identifier.toLowerCase();
+          const productId = selectedPlanData?.packageObject.product.identifier.toLowerCase();
+
+          // Determine plan type based on package identifier or product ID
+          let planType: 'monthly' | 'yearly' | 'lifetime' = 'monthly';
+          if (identifier.includes('annual') || identifier.includes('yearly') || productId.includes('yearly')) {
+            planType = 'yearly';
+          } else if (identifier.includes('lifetime') || productId.includes('lifetime')) {
+            planType = 'lifetime';
           }
-        ]
-      );
-    } catch (error) {
-      Alert.alert('Error', 'Failed to process subscription. Please try again.');
+          const canAdd = await SubscriptionManager.activateSubscription(planType);
+
+        } catch (error) {
+          console.log(error);
+
+        }
+
+
+
+        Alert.alert(
+          '🎉 Welcome to Premium!',
+          `Your ${selectedPlanData.name} subscription is now active. Enjoy unlimited secure storage and advanced features!`,
+          [
+            {
+              text: 'Get Started',
+              onPress: () => router.replace('/(tabs)')
+            }
+          ]
+        );
+      } else {
+        throw new Error('Purchase was not completed successfully');
+      }
+    } catch (error: any) {
+      console.error('Purchase error:', error);
+
+      // Handle different error types
+      if (error.userCancelled) {
+        // User cancelled the purchase - no need to show error
+        return;
+      }
+
+      let errorMessage = 'Failed to process subscription. Please try again.';
+
+      if (error.code === 'PAYMENT_PENDING') {
+        errorMessage = 'Payment is pending. You will receive access once payment is confirmed.';
+      } else if (error.code === 'PRODUCT_ALREADY_PURCHASED') {
+        errorMessage = 'You already own this subscription.';
+        // Try to restore purchases
+        await handleRestorePurchases();
+        return;
+      }
+
+      Alert.alert('Purchase Error', errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -176,31 +340,48 @@ export default function PaywallScreen() {
 
   const handleRestorePurchases = async () => {
     setIsLoading(true);
-    
+
     try {
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      Alert.alert('No Purchases Found', 'No previous purchases were found for this account.');
+      // Restore purchases through RevenueCat
+      const customerInfo = await Purchases.restorePurchases();
+
+      if (customerInfo.activeSubscriptions.length > 0 || customerInfo.nonSubscriptionTransactions.length > 0) {
+        Alert.alert(
+          'Purchases Restored',
+          'Your subscription has been restored successfully!',
+          [
+            {
+              text: 'Continue',
+              onPress: () => router.replace('/(tabs)')
+            }
+          ]
+        );
+      } else {
+        Alert.alert('No Purchases Found', 'No previous purchases were found for this account.');
+      }
     } catch (error) {
+      console.error('Restore error:', error);
       Alert.alert('Error', 'Failed to restore purchases. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleContinueFree = () => {
+  const handleContinueFree = async () => {
+    await SecureStore.setItemAsync('has_seen_paywall', 'true');
     router.replace('/(tabs)');
   };
 
   const selectedPlanData = plans.find(p => p.id === selectedPlan);
 
-  const renderPlanCard = (plan: SubscriptionPlan) => (
+  const renderPlanCard = (plan: DynamicSubscriptionPlan) => (
     <Animated.View
       key={plan.id}
       style={[
         styles.planCard,
         selectedPlan === plan.id && styles.selectedPlan,
         plan.popular && styles.popularPlan,
-        { 
+        {
           borderColor: selectedPlan === plan.id ? plan.color : 'transparent',
           transform: plan.popular ? [{ scale: pulseAnim }] : undefined
         }
@@ -215,7 +396,7 @@ export default function PaywallScreen() {
             <Text style={styles.planBadgeText}>{plan.badge}</Text>
           </View>
         )}
-        
+
         <View style={styles.planHeader}>
           <View style={styles.planTitleContainer}>
             <Text style={styles.planName}>{plan.name}</Text>
@@ -226,7 +407,7 @@ export default function PaywallScreen() {
               </Text>
             </View>
           </View>
-          
+
           <View style={styles.priceContainer}>
             <Text style={[styles.planPrice, { color: plan.color }]}>{plan.price}</Text>
             <Text style={styles.planPeriod}>{plan.period}</Text>
@@ -242,19 +423,7 @@ export default function PaywallScreen() {
           </View>
         )}
 
-        <View style={styles.featuresPreview}>
-          {plan.features.slice(0, 3).map((feature, index) => (
-            <View key={index} style={styles.featurePreviewItem}>
-              <Check size={14} color={plan.color} />
-              <Text style={styles.featurePreviewText}>{feature}</Text>
-            </View>
-          ))}
-          {plan.features.length > 3 && (
-            <Text style={[styles.moreFeatures, { color: plan.color }]}>
-              +{plan.features.length - 3} more features
-            </Text>
-          )}
-        </View>
+        <FeaturesPreview plan={plan} />
 
         <View style={[
           styles.radioButton,
@@ -268,10 +437,33 @@ export default function PaywallScreen() {
     </Animated.View>
   );
 
+  // Loading state while fetching offerings
+  if (isLoadingOfferings) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Crown size={40} color="#FFD700" />
+        <Text style={styles.loadingText}>Loading subscription plans...</Text>
+      </View>
+    );
+  }
+
+  // No plans available
+  if (plans.length === 0) {
+    return (
+      <View style={styles.errorContainer}>
+        <X size={40} color="#FF3B30" />
+        <Text style={styles.errorText}>No subscription plans available</Text>
+        <TouchableOpacity style={styles.retryButton} onPress={loadOfferings}>
+          <Text style={styles.retryButtonText}>Retry</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       {/* Animated Header */}
-      <Animated.View 
+      <Animated.View
         style={[
           styles.header,
           {
@@ -281,14 +473,14 @@ export default function PaywallScreen() {
         ]}
       >
         {!isFirstLaunch && (
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.closeButton}
             onPress={() => router.back()}
           >
             <X size={24} color="#FFFFFF" />
           </TouchableOpacity>
         )}
-        
+
         <View style={styles.headerContent}>
           <View style={styles.iconContainer}>
             <Crown size={40} color="#FFD700" />
@@ -298,7 +490,7 @@ export default function PaywallScreen() {
           </View>
           <Text style={styles.headerTitle}>Unlock Vaultify Premium</Text>
           <Text style={styles.headerSubtitle}>
-            {isFirstLaunch 
+            {isFirstLaunch
               ? 'Choose your plan to secure your memories with military-grade protection'
               : 'Upgrade to premium for unlimited storage and advanced security'
             }
@@ -308,7 +500,7 @@ export default function PaywallScreen() {
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Value Proposition */}
-        <Animated.View 
+        <Animated.View
           style={[
             styles.valueSection,
             { opacity: fadeAnim }
@@ -323,7 +515,7 @@ export default function PaywallScreen() {
               <Text style={styles.valueItemTitle}>Unlimited Storage</Text>
               <Text style={styles.valueItemText}>Never worry about running out of space</Text>
             </View>
-            
+
             <View style={styles.valueItem}>
               <View style={[styles.valueIcon, { backgroundColor: 'rgba(52, 199, 89, 0.1)' }]}>
                 <Shield size={24} color="#34C759" />
@@ -331,7 +523,7 @@ export default function PaywallScreen() {
               <Text style={styles.valueItemTitle}>Military-Grade Security</Text>
               <Text style={styles.valueItemText}>AES-256 encryption with 2FA protection</Text>
             </View>
-            
+
             <View style={styles.valueItem}>
               <View style={[styles.valueIcon, { backgroundColor: 'rgba(255, 149, 0, 0.1)' }]}>
                 <Camera size={24} color="#FF9500" />
@@ -339,7 +531,7 @@ export default function PaywallScreen() {
               <Text style={styles.valueItemTitle}>Break-in Detection</Text>
               <Text style={styles.valueItemText}>Automatic intruder photo capture</Text>
             </View>
-            
+
             <View style={styles.valueItem}>
               <View style={[styles.valueIcon, { backgroundColor: 'rgba(175, 82, 222, 0.1)' }]}>
                 <Users size={24} color="#AF52DE" />
@@ -351,26 +543,26 @@ export default function PaywallScreen() {
         </Animated.View>
 
         {/* Plan Selection */}
-        <Animated.View 
+        <Animated.View
           style={[
             styles.planSection,
             { opacity: fadeAnim }
           ]}
         >
           <Text style={styles.sectionTitle}>Choose Your Plan</Text>
-          
+
           {plans.map(renderPlanCard)}
         </Animated.View>
 
         {/* Feature Comparison */}
-        <Animated.View 
+        <Animated.View
           style={[
             styles.comparisonSection,
             { opacity: fadeAnim }
           ]}
         >
           <Text style={styles.sectionTitle}>Free vs Premium</Text>
-          
+
           <View style={styles.comparisonTable}>
             {/* Free Tier */}
             <View style={styles.tierColumn}>
@@ -378,14 +570,14 @@ export default function PaywallScreen() {
                 <Shield size={20} color="#8E8E93" />
                 <Text style={styles.tierName}>Free</Text>
               </View>
-              
+
               {freeFeatures.map((feature, index) => (
                 <View key={index} style={styles.featureRow}>
                   <Check size={16} color="#8E8E93" />
                   <Text style={styles.freeFeatureText}>{feature}</Text>
                 </View>
               ))}
-              
+
               {/* Show what's missing in free */}
               <View style={styles.featureRow}>
                 <X size={16} color="#FF3B30" />
@@ -407,7 +599,7 @@ export default function PaywallScreen() {
                 <Crown size={20} color="#FFD700" />
                 <Text style={styles.premiumTierName}>Premium</Text>
               </View>
-              
+
               {selectedPlanData?.features.slice(0, 8).map((feature, index) => (
                 <View key={index} style={styles.featureRow}>
                   <Check size={16} color="#34C759" />
@@ -419,7 +611,7 @@ export default function PaywallScreen() {
         </Animated.View>
 
         {/* Trust Indicators */}
-        <Animated.View 
+        <Animated.View
           style={[
             styles.trustSection,
             { opacity: fadeAnim }
@@ -444,7 +636,7 @@ export default function PaywallScreen() {
         </Animated.View>
 
         {/* Testimonials */}
-        <Animated.View 
+        <Animated.View
           style={[
             styles.testimonialsSection,
             { opacity: fadeAnim }
@@ -467,7 +659,7 @@ export default function PaywallScreen() {
       </ScrollView>
 
       {/* Bottom Action */}
-      <Animated.View 
+      <Animated.View
         style={[
           styles.bottomSection,
           { opacity: fadeAnim }
@@ -475,7 +667,7 @@ export default function PaywallScreen() {
       >
         <TouchableOpacity
           style={[
-            styles.subscribeButton, 
+            styles.subscribeButton,
             { backgroundColor: selectedPlanData?.color || '#007AFF' },
             isLoading && styles.loadingButton
           ]}
@@ -493,28 +685,32 @@ export default function PaywallScreen() {
             </>
           )}
         </TouchableOpacity>
-        
+
         <View style={styles.bottomLinks}>
           <TouchableOpacity onPress={handleRestorePurchases}>
             <Text style={styles.linkText}>Restore Purchases</Text>
           </TouchableOpacity>
           <Text style={styles.linkSeparator}>•</Text>
-          <TouchableOpacity>
+          <TouchableOpacity onPress={() =>
+            Linking.openURL('https://www.apple.com/legal/internet-services/itunes/dev/stdeula/')
+          }>
             <Text style={styles.linkText}>Terms of Service</Text>
           </TouchableOpacity>
           <Text style={styles.linkSeparator}>•</Text>
-          <TouchableOpacity>
+          <TouchableOpacity onPress={() =>
+            Linking.openURL('https://www.privacypolicies.com/live/ffb87454-127b-499f-bc46-7d143e29a918')
+          } >
             <Text style={styles.linkText}>Privacy Policy</Text>
           </TouchableOpacity>
         </View>
-        
+
         <Text style={styles.disclaimer}>
-          {isFirstLaunch 
+          {isFirstLaunch
             ? 'You can always start with the free plan and upgrade later.'
             : 'Subscription automatically renews unless auto-renew is turned off at least 24 hours before the end of the current period.'
           }
         </Text>
-        
+
         {isFirstLaunch && (
           <TouchableOpacity
             style={styles.continueButton}
@@ -764,7 +960,7 @@ const styles = StyleSheet.create({
   },
   radioButton: {
     position: 'absolute',
-    top: 24,
+    top: 12,
     left: 24,
     width: 24,
     height: 24,
@@ -952,5 +1148,43 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Medium',
     color: '#8E8E93',
     textAlign: 'center',
+  },
+  loadingContainer: {
+    flex: 1,
+    backgroundColor: '#000000',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontFamily: 'Inter-Medium',
+    marginTop: 16,
+  },
+  errorContainer: {
+    flex: 1,
+    backgroundColor: '#000000',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontFamily: 'Inter-Medium',
+    marginTop: 16,
+    textAlign: 'center',
+  },
+  retryButton: {
+    backgroundColor: '#007AFF',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginTop: 16,
+  },
+  retryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontFamily: 'Inter-SemiBold',
   },
 });
