@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView, TextInput, Alert, Switch } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView, TextInput, Alert, Switch, Linking } from 'react-native';
 import { X, Users, UserPlus, Settings, Shield, Activity, CreditCard, MapPin, Clock, Mail, Crown, User, Baby } from 'lucide-react-native';
 import { FamilyManager, FamilyGroup, FamilyMember, FamilyActivity, ParentalControls } from '@/utils/FamilyManager';
 
@@ -14,14 +14,14 @@ export default function FamilyManagementModal({ visible, onClose }: FamilyManage
   const [activeTab, setActiveTab] = useState<'overview' | 'members' | 'activity' | 'settings' | 'billing'>('overview');
   const [loading, setLoading] = useState(true);
   const [familyActivity, setFamilyActivity] = useState<FamilyActivity[]>([]);
-  
+
   // Invitation state
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<'adult' | 'child'>('adult');
   const [inviteFirstName, setInviteFirstName] = useState('');
   const [inviteLastName, setInviteLastName] = useState('');
-  
+
   // Parental controls state
   const [showParentalControls, setShowParentalControls] = useState(false);
   const [selectedChildId, setSelectedChildId] = useState<string>('');
@@ -51,7 +51,7 @@ export default function FamilyManagementModal({ visible, onClose }: FamilyManage
       setLoading(true);
       const group = await FamilyManager.getFamilyGroup();
       setFamilyGroup(group);
-      
+
       if (group) {
         const activity = await FamilyManager.getFamilyActivity(20);
         setFamilyActivity(activity);
@@ -212,7 +212,9 @@ export default function FamilyManagementModal({ visible, onClose }: FamilyManage
 
   const renderMembers = () => (
     <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
-      <TouchableOpacity style={styles.inviteButton} onPress={() => setShowInviteModal(true)}>
+      <TouchableOpacity style={styles.inviteButton} onPress={() => {
+        Linking.openURL('App-Prefs:root=APPLE_ACCOUNT&path=SUBSCRIPTIONS');
+      }}>
         <UserPlus size={20} color="#FFFFFF" />
         <Text style={styles.inviteButtonText}>Invite Family Member</Text>
       </TouchableOpacity>
@@ -250,7 +252,7 @@ export default function FamilyManagementModal({ visible, onClose }: FamilyManage
                 <Text style={styles.actionButtonText}>Parental Controls</Text>
               </TouchableOpacity>
             )}
-            
+
             {member.role !== 'owner' && (
               <TouchableOpacity
                 style={[styles.actionButton, styles.removeButton]}
@@ -307,7 +309,7 @@ export default function FamilyManagementModal({ visible, onClose }: FamilyManage
               {new Date(activity.timestamp).toLocaleString()}
             </Text>
           </View>
-          
+
           {activity.details && (
             <View style={styles.activityDetailsContainer}>
               <Text style={styles.activityDetailsText}>
@@ -340,7 +342,7 @@ export default function FamilyManagementModal({ visible, onClose }: FamilyManage
             <TouchableOpacity style={styles.closeButton} onPress={onClose}>
               <X size={24} color="#FFFFFF" />
             </TouchableOpacity>
-            
+
             <View style={styles.emptyState}>
               <Users size={64} color="#8E8E93" />
               <Text style={styles.emptyTitle}>No Family Group</Text>
@@ -518,7 +520,7 @@ export default function FamilyManagementModal({ visible, onClose }: FamilyManage
                   <Text style={styles.controlTitle}>Content Filtering</Text>
                   <Switch
                     value={parentalControls.contentFiltering}
-                    onValueChange={(value) => 
+                    onValueChange={(value) =>
                       setParentalControls(prev => ({ ...prev, contentFiltering: value }))
                     }
                     trackColor={{ false: '#48484A', true: '#007AFF' }}
@@ -533,9 +535,9 @@ export default function FamilyManagementModal({ visible, onClose }: FamilyManage
                   <Text style={styles.controlTitle}>Time Restrictions</Text>
                   <Switch
                     value={parentalControls.timeRestrictions.enabled}
-                    onValueChange={(value) => 
-                      setParentalControls(prev => ({ 
-                        ...prev, 
+                    onValueChange={(value) =>
+                      setParentalControls(prev => ({
+                        ...prev,
                         timeRestrictions: { ...prev.timeRestrictions, enabled: value }
                       }))
                     }
@@ -543,7 +545,7 @@ export default function FamilyManagementModal({ visible, onClose }: FamilyManage
                     thumbColor="#FFFFFF"
                   />
                 </View>
-                
+
                 {parentalControls.timeRestrictions.enabled && (
                   <View style={styles.timeSettings}>
                     <Text style={styles.timeLabel}>Allowed Hours: 9:00 AM - 9:00 PM</Text>
@@ -554,14 +556,14 @@ export default function FamilyManagementModal({ visible, onClose }: FamilyManage
 
               <View style={styles.controlGroup}>
                 <Text style={styles.controlTitle}>Approval Required</Text>
-                
+
                 <View style={styles.approvalItem}>
                   <Text style={styles.approvalLabel}>New Vaults</Text>
                   <Switch
                     value={parentalControls.approvalRequired.newVaults}
-                    onValueChange={(value) => 
-                      setParentalControls(prev => ({ 
-                        ...prev, 
+                    onValueChange={(value) =>
+                      setParentalControls(prev => ({
+                        ...prev,
                         approvalRequired: { ...prev.approvalRequired, newVaults: value }
                       }))
                     }
@@ -574,9 +576,9 @@ export default function FamilyManagementModal({ visible, onClose }: FamilyManage
                   <Text style={styles.approvalLabel}>Content Sharing</Text>
                   <Switch
                     value={parentalControls.approvalRequired.sharing}
-                    onValueChange={(value) => 
-                      setParentalControls(prev => ({ 
-                        ...prev, 
+                    onValueChange={(value) =>
+                      setParentalControls(prev => ({
+                        ...prev,
                         approvalRequired: { ...prev.approvalRequired, sharing: value }
                       }))
                     }

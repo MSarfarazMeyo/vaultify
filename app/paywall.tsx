@@ -6,6 +6,7 @@ import { Shield, Crown, Check, X, Star, Zap, Cloud, Camera, Lock, Eye, Sparkles,
 import SecureStore from '@/utils/secureStorage';
 import FeaturesPreview from '@/components/FeaturesPreview';
 import { SubscriptionManager } from '@/utils/SubscriptionManager';
+import RevenueCatUI from 'react-native-purchases-ui';
 
 const { width, height } = Dimensions.get('window');
 
@@ -84,12 +85,167 @@ export default function PaywallScreen() {
     }
   };
 
+  const openCustomerCenter = async () => {
+    try {
+      await RevenueCatUI.presentCustomerCenter({
+        callbacks: {
+          onRestoreCompleted: async ({ customerInfo }) => {
+
+          },
+          onRefundRequestCompleted: async () => {
+          },
+
+
+        },
+      });
+
+      await handleSubscriptionUpdate()
+      router.back();
+
+      // After user closes Customer Center, reload subscription data to catch any changes (cancel/refund/etc)
+    } catch (error) {
+      console.error('Error presenting customer center:', error);
+      router.back();
+    }
+  };
+
+
+  const checkActuallyActiveEntitlement = async (customerInfo: any): Promise<boolean> => {
+    // Check if any entitlement is actually active (not expired)
+    const activeEntitlements: any = Object.values(customerInfo.entitlements.active);
+
+    for (const entitlement of activeEntitlements) {
+      if (entitlement?.isActive) {
+        return true;
+      }
+    }
+
+    return false;
+  };
+
+
+
+  const handleSubscriptionUpdate = async () => {
+    try {
+
+      const customerInfo = await Purchases.getCustomerInfo();
+
+
+      const hasLifetimePurchase = customerInfo.nonSubscriptionTransactions.length > 0;
+      const hasPremiumEntitlement = customerInfo.entitlements.active.premium !== undefined;
+      const hasActiveSubscription = customerInfo.activeSubscriptions.length > 0;
+      const currentStatus = await SubscriptionManager.getSubscriptionStatus();
+
+      const isCancelled = await checkActuallyActiveEntitlement(customerInfo)
+
+
+
+      if (!isCancelled) {
+        // No active subscription or purchase - set to free
+        if (currentStatus.plan !== 'free' || currentStatus.isActive) {
+          await SubscriptionManager.cancelSubscription();
+          return customerInfo
+        }
+      }
+
+      // User has some form of premium access
+      if (hasLifetimePurchase && currentStatus.plan !== 'lifetime') {
+        await SubscriptionManager.activateSubscription('lifetime');
+        return customerInfo
+      }
+
+
+
+      const activeSubscriptions = customerInfo?.activeSubscriptions;
+
+      // Determine plan type based on subscription IDs
+      let planType: 'monthly' | 'yearly' | 'lifetime' = 'monthly';
+
+      for (const subId of activeSubscriptions) {
+        if (subId.includes('yearly') || subId.includes('annual')) {
+          planType = 'yearly';
+          break;
+        } else if (subId.includes('lifetime')) {
+          planType = 'lifetime';
+          break;
+        }
+      }
+
+      if (hasActiveSubscription && currentStatus.plan !== 'yearly' && planType == 'yearly') {
+        await SubscriptionManager.activateSubscription('yearly');
+      }
+
+
+      if (hasActiveSubscription && currentStatus.plan !== 'monthly' && planType == 'monthly') {
+        await SubscriptionManager.activateSubscription('monthly');
+      }
+
+      return customerInfo
+    } catch (error) {
+      console.error('Failed to update subscription status:', error);
+      return {}
+    }
+  };
+
+
+
+
   const loadOfferings = async () => {
     try {
+
       setIsLoadingOfferings(true);
 
-      // Get current customer info to check existing subscriptions
-      const customerInfo = await Purchases.getCustomerInfo();
+
+      const customerInfo: any = await handleSubscriptionUpdate() || {}
+
+
+
+
+      const hasActiveSubscription = customerInfo.activeSubscriptions.length > 0;
+      const hasNonSubscriptionPurchases = customerInfo.nonSubscriptionTransactions.length > 0;
+      const hasActiveEntitlements = Object.keys(customerInfo.entitlements.active).length > 0;
+
+      if (hasNonSubscriptionPurchases && hasActiveEntitlements) {
+        Alert.alert(
+          'Purchase Found',
+          'You already have an active Purchase.',
+          [
+            {
+              text: 'Manage Purchases',
+              onPress: () => openCustomerCenter()
+            },
+            {
+              text: 'Go Back',
+              style: 'cancel',
+              onPress: () => router.back()
+
+            }
+          ]
+        );
+      }
+
+      else if (hasActiveSubscription && hasActiveEntitlements) {
+        // User already has a purchase - redirect to management screen
+        Alert.alert(
+          'Subscription Found',
+          'You already have an active subscription.',
+          [
+            {
+              text: 'Manage Subscription',
+              onPress: () => openCustomerCenter()
+            },
+            {
+              text: 'Go Back',
+              style: 'cancel',
+              onPress: () => router.back()
+
+            }
+          ]
+        );
+      }
+
+
+
 
       // Get available offerings
       const offerings = await Purchases.getOfferings();
@@ -139,7 +295,6 @@ export default function PaywallScreen() {
       const identifier = pkg.identifier.toLowerCase();
       const productId = pkg.product.identifier.toLowerCase();
 
-      console.log("identifier", identifier);
 
 
       // Determine plan type based on package identifier or product ID
@@ -267,6 +422,7 @@ export default function PaywallScreen() {
     setIsLoading(true);
 
     try {
+
       const selectedPlanData = plans.find(p => p.id === planId);
       if (!selectedPlanData) {
         throw new Error('Selected plan not found');
@@ -338,12 +494,17 @@ export default function PaywallScreen() {
     }
   };
 
+
+
+
   const handleRestorePurchases = async () => {
     setIsLoading(true);
 
     try {
       // Restore purchases through RevenueCat
       const customerInfo = await Purchases.restorePurchases();
+
+
 
       if (customerInfo.activeSubscriptions.length > 0 || customerInfo.nonSubscriptionTransactions.length > 0) {
         Alert.alert(

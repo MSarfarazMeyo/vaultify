@@ -60,7 +60,7 @@ export default function FamilyScreen() {
         firstName: 'John',
         lastName: 'Doe'
       });
-      
+
       setFamilyGroup(group);
       setShowCreateModal(false);
       setFamilyName('');
@@ -79,7 +79,7 @@ export default function FamilyScreen() {
 
     try {
       await FamilyManager.inviteFamilyMember(inviteEmail, inviteRole);
-      
+
       // Show success with invitation details
       Alert.alert(
         '📧 Invitation Sent!',
@@ -100,7 +100,7 @@ export default function FamilyScreen() {
           { text: 'OK' }
         ]
       );
-      
+
       setShowInviteModal(false);
       setInviteEmail('');
       loadFamilyData();
@@ -174,8 +174,8 @@ export default function FamilyScreen() {
 
   const renderMembers = () => (
     <View style={styles.tabContent}>
-      <TouchableOpacity 
-        style={styles.inviteButton} 
+      <TouchableOpacity
+        style={styles.inviteButton}
         onPress={() => setShowInviteModal(true)}
       >
         <UserPlus size={20} color="#FFFFFF" />
@@ -272,8 +272,8 @@ export default function FamilyScreen() {
           <Text style={styles.emptySubtitle}>
             Create a family group to share premium features with up to 6 family members
           </Text>
-          <TouchableOpacity 
-            style={styles.createFamilyButton} 
+          <TouchableOpacity
+            style={styles.createFamilyButton}
             onPress={() => setShowCreateModal(true)}
           >
             <UserPlus size={20} color="#FFFFFF" />
@@ -294,7 +294,7 @@ export default function FamilyScreen() {
               <Text style={styles.modalSubtitle}>
                 Choose a name for your family group
               </Text>
-              
+
               <TextInput
                 style={styles.modalInput}
                 placeholder="Family Name"
@@ -302,7 +302,7 @@ export default function FamilyScreen() {
                 value={familyName}
                 onChangeText={setFamilyName}
               />
-              
+
               <View style={styles.modalButtons}>
                 <TouchableOpacity
                   style={styles.cancelButton}
@@ -389,7 +389,7 @@ export default function FamilyScreen() {
             <Text style={styles.modalSubtitle}>
               Send an invitation to join your family group
             </Text>
-            
+
             <TextInput
               style={styles.modalInput}
               placeholder="Email Address"
@@ -423,7 +423,7 @@ export default function FamilyScreen() {
                 </TouchableOpacity>
               </View>
             </View>
-            
+
             <View style={styles.modalButtons}>
               <TouchableOpacity
                 style={styles.cancelButton}

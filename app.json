@@ -2,7 +2,7 @@
   "expo": {
     "name": "Vaultify Secure",
     "slug": "vaultify",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "vaultify",
@@ -23,7 +23,7 @@
       "supportsTablet": true,
       "usesAppleSignIn": true,
       "bundleIdentifier": "com.vaultify.app",
-      "buildNumber": "18",
+      "buildNumber": "19",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Your permission allows us to access your media gallery so you can upload images from your photo library."
       }
