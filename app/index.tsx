@@ -20,14 +20,14 @@ export default function LoginScreen() {
   const [isNewInput, setIsNewInput] = useState(true);
   const [secretPinAttempts, setSecretPinAttempts] = useState(0);
 
-  useEffect(() => {
-    checkSetupStatus();
-  }, []);
+  // useEffect(() => {
+  //   checkSetupStatus();
+  // }, []);
 
   const checkSetupStatus = async () => {
     try {
       const setupComplete = await SecureStore.getItemAsync('setup_complete');
-      if (!setupComplete) {
+      if (setupComplete) {
         router.replace('/setup');
         return;
       }
@@ -44,7 +44,7 @@ export default function LoginScreen() {
     setCalculatorInput('0');
     setIsNewInput(true);
     setSecretPinAttempts(0);
-    
+
     checkFirstLaunch();
     checkDuressMode();
     checkBiometricAuth();
@@ -54,7 +54,7 @@ export default function LoginScreen() {
   const checkFirstLaunch = async () => {
     try {
       const hasSeenPaywall = await SecureStoreUtil.getItemAsync('has_seen_paywall');
-      if (!hasSeenPaywall) {
+      if (hasSeenPaywall) {
         // Mark as seen and show paywall
         await SecureStoreUtil.setItemAsync('has_seen_paywall', 'true');
         router.push('/paywall');
@@ -79,7 +79,7 @@ export default function LoginScreen() {
 
   const checkBiometricAuth = async () => {
     if (Platform.OS === 'web') return;
-    
+
     try {
       const compatible = await LocalAuthentication.hasHardwareAsync();
       const enrolled = await LocalAuthentication.isEnrolledAsync();
@@ -137,7 +137,7 @@ export default function LoginScreen() {
     if (isLocked) return;
 
     const isDuressCode = password === '000000';
-    
+
     if (isDuressCode) {
       setShowDecoy(true);
       SecurityManager.logSecurityEvent('duress_code_used');
@@ -146,7 +146,7 @@ export default function LoginScreen() {
     }
 
     const isValid = await SecurityManager.validatePassword(password);
-    
+
     if (isValid) {
       setAttempts(0);
       SecurityManager.logSecurityEvent('password_auth_success');
@@ -154,7 +154,7 @@ export default function LoginScreen() {
     } else {
       const newAttempts = attempts + 1;
       setAttempts(newAttempts);
-      
+
       SecurityManager.logSecurityEvent('failed_login_attempt', {
         attempts: newAttempts,
         timestamp: Date.now()
@@ -164,16 +164,16 @@ export default function LoginScreen() {
         await SecurityManager.handleBreakInAttempt();
         setIsLocked(true);
         setLockoutTime(300); // 5 minutes
-        
+
         await SecureStore.setItemAsync('lockout_data', JSON.stringify({
           timestamp: Date.now(),
           duration: 300000
         }));
       }
-      
+
       Alert.alert('Invalid Password', `${3 - newAttempts} attempts remaining`);
     }
-    
+
     setPassword('');
   };
 
@@ -199,43 +199,43 @@ export default function LoginScreen() {
       const checkPin = async () => {
         const secretPin = await SecurityManager.getCalculatorPin();
         if (calculatorInput === secretPin) {
-        // Successfully entered PIN - navigate to home
-        SecurityManager.logSecurityEvent('password_auth_success', { method: 'calculator_pin' });
-        router.replace('/(tabs)');
-        setShowDecoy(false);
-        setSecretPinAttempts(0);
-        setCalculatorInput('0');
-        setIsNewInput(true);
-        return;
+          // Successfully entered PIN - navigate to home
+          SecurityManager.logSecurityEvent('password_auth_success', { method: 'calculator_pin' });
+          router.replace('/(tabs)');
+          setShowDecoy(false);
+          setSecretPinAttempts(0);
+          setCalculatorInput('0');
+          setIsNewInput(true);
+          return;
         } else {
-        // Increment failed attempts
-        const newAttempts = secretPinAttempts + 1;
-        setSecretPinAttempts(newAttempts);
-        
-        if (newAttempts >= 3) {
-          // Log security event for multiple failed PIN attempts
-          SecurityManager.logSecurityEvent('break_in_attempt', {
-            type: 'calculator_pin_attempts',
-            attempts: newAttempts
-          });
-        }
-        
-        // Show fake calculation result
-        try {
-          // Only try to evaluate if it looks like a math expression
-          if (calculatorInput.includes('+') || calculatorInput.includes('-') || 
-              calculatorInput.includes('×') || calculatorInput.includes('÷')) {
-            const result = eval(calculatorInput.replace('×', '*').replace('÷', '/'));
-            setCalculatorInput(result.toString());
-          } else {
-            // For single numbers, just show the number
-            setCalculatorInput(calculatorInput);
+          // Increment failed attempts
+          const newAttempts = secretPinAttempts + 1;
+          setSecretPinAttempts(newAttempts);
+
+          if (newAttempts >= 3) {
+            // Log security event for multiple failed PIN attempts
+            SecurityManager.logSecurityEvent('break_in_attempt', {
+              type: 'calculator_pin_attempts',
+              attempts: newAttempts
+            });
           }
-        } catch {
-          setCalculatorInput('Error');
-        }
-        setIsNewInput(true);
-        return;
+
+          // Show fake calculation result
+          try {
+            // Only try to evaluate if it looks like a math expression
+            if (calculatorInput.includes('+') || calculatorInput.includes('-') ||
+              calculatorInput.includes('×') || calculatorInput.includes('÷')) {
+              const result = eval(calculatorInput.replace('×', '*').replace('÷', '/'));
+              setCalculatorInput(result.toString());
+            } else {
+              // For single numbers, just show the number
+              setCalculatorInput(calculatorInput);
+            }
+          } catch {
+            setCalculatorInput('Error');
+          }
+          setIsNewInput(true);
+          return;
         }
       };
       checkPin();
@@ -284,7 +284,7 @@ export default function LoginScreen() {
           {calculatorInput}
         </Text>
       </View>
-      
+
       {secretPinAttempts > 0 && (
         <View style={styles.warningContainer}>
           <Text style={styles.warningText}>
@@ -292,13 +292,13 @@ export default function LoginScreen() {
           </Text>
         </View>
       )}
-      
+
       <View style={styles.calculatorButtons}>
         {['C', '÷', '×', '⌫', '7', '8', '9', '-', '4', '5', '6', '+', '1', '2', '3', '=', '0', '.', ''].map((btn, index) => (
           <TouchableOpacity
             key={index}
             style={[
-              styles.calcButton, 
+              styles.calcButton,
               btn === '=' && styles.calcButtonEquals,
               ['C', '÷', '×', '⌫', '-', '+'].includes(btn) && styles.calcButtonOperator,
               btn === '0' && styles.calcButtonZero
@@ -310,7 +310,7 @@ export default function LoginScreen() {
           </TouchableOpacity>
         ))}
       </View>
-      
+
       <View style={styles.calculatorHint}>
         <Text style={styles.hintText}>
           Tip: Try some calculations to test the calculator
@@ -386,7 +386,7 @@ export default function LoginScreen() {
             {attempts === 0 ? 'Secure' : `${attempts} failed attempts`}
           </Text>
         </View>
-        
+
         <Text style={styles.duressHint}>
           Emergency? Enter 000000 for calculator mode
         </Text>

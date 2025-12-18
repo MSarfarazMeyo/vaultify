@@ -7,18 +7,17 @@
     "icon": "./assets/images/icon.png",
     "scheme": "vaultify",
     "userInterfaceStyle": "automatic",
-
     "splash": {
       "image": "./assets/images/icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#000000"
     },
-
     "updates": {
       "fallbackToCacheTimeout": 0
     },
-    "assetBundlePatterns": ["**/*"],
-
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true,
       "usesAppleSignIn": true,
@@ -42,7 +41,8 @@
         {
           "photosPermission": "Your permission allows us to access your media gallery so you can upload images from your photo library ."
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true
