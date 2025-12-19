@@ -1,3 +1,4 @@
+import Purchases from 'react-native-purchases';
 import SecureStore from './secureStorage';
 import { SecurityManager } from './SecurityManager';
 
@@ -28,16 +29,23 @@ export class SubscriptionManager {
 
   static async getSubscriptionStatus(): Promise<SubscriptionStatus> {
     try {
-      const encryptedStatus = await SecureStore.getItemAsync(this.SUBSCRIPTION_KEY);
+      const encryptedStatus = await SecureStore.getItemAsync(
+        this.SUBSCRIPTION_KEY
+      );
       if (!encryptedStatus) {
         return this.getDefaultFreeStatus();
       }
 
       try {
-        const decryptedStatus = await SecurityManager.decryptData(encryptedStatus);
+        const decryptedStatus = await SecurityManager.decryptData(
+          encryptedStatus
+        );
         return JSON.parse(decryptedStatus);
       } catch (decryptError) {
-        console.warn('Failed to decrypt subscription status, returning free status:', decryptError);
+        console.warn(
+          'Failed to decrypt subscription status, returning free status:',
+          decryptError
+        );
         // Clear corrupted data and return free status
         await SecureStore.deleteItemAsync(this.SUBSCRIPTION_KEY);
         return this.getDefaultFreeStatus();
@@ -48,14 +56,18 @@ export class SubscriptionManager {
     }
   }
 
-  static async updateSubscriptionStatus(status: SubscriptionStatus): Promise<boolean> {
+  static async updateSubscriptionStatus(
+    status: SubscriptionStatus
+  ): Promise<boolean> {
     try {
-      const encryptedStatus = await SecurityManager.encryptData(JSON.stringify(status));
+      const encryptedStatus = await SecurityManager.encryptData(
+        JSON.stringify(status)
+      );
       await SecureStore.setItemAsync(this.SUBSCRIPTION_KEY, encryptedStatus);
 
       SecurityManager.logSecurityEvent('subscription_updated', {
         plan: status.plan,
-        isActive: status.isActive
+        isActive: status.isActive,
       });
 
       return true;
@@ -65,17 +77,22 @@ export class SubscriptionManager {
     }
   }
 
-  static async activateSubscription(plan: 'monthly' | 'yearly' | 'lifetime'): Promise<boolean> {
+  static async activateSubscription(
+    plan: 'monthly' | 'yearly' | 'lifetime'
+  ): Promise<boolean> {
     try {
-      const expiresAt = plan === 'lifetime' ? undefined :
-        plan === 'yearly' ? Date.now() + (365 * 24 * 60 * 60 * 1000) :
-          Date.now() + (30 * 24 * 60 * 60 * 1000);
+      const expiresAt =
+        plan === 'lifetime'
+          ? undefined
+          : plan === 'yearly'
+          ? Date.now() + 365 * 24 * 60 * 60 * 1000
+          : Date.now() + 30 * 24 * 60 * 60 * 1000;
 
       const status: SubscriptionStatus = {
         isActive: true,
         plan,
         expiresAt,
-        features: this.getPremiumFeatures()
+        features: this.getPremiumFeatures(),
       };
 
       const success = await this.updateSubscriptionStatus(status);
@@ -97,7 +114,7 @@ export class SubscriptionManager {
       const status: SubscriptionStatus = {
         ...currentStatus,
         isActive: false,
-        features: this.getFreeFeatures()
+        features: this.getFreeFeatures(),
       };
 
       return await this.updateSubscriptionStatus(status);
@@ -134,13 +151,12 @@ export class SubscriptionManager {
 
     if (isActive && status.plan !== 'free') {
       // Different storage limits based on plan
-      const cloudStorageGB = status.plan === 'monthly' ? 100 :
-        status.plan === 'yearly' ? 500 :
-          1000; // lifetime gets 1TB
+      const cloudStorageGB =
+        status.plan === 'monthly' ? 100 : status.plan === 'yearly' ? 500 : 1000; // lifetime gets 1TB
 
       return {
         maxPhotos: -1, // Unlimited count
-        maxVideos: -1, // Unlimited count  
+        maxVideos: -1, // Unlimited count
         maxAudio: -1, // Unlimited count
         maxVaults: -1, // Unlimited count
         cloudStorageGB,
@@ -149,7 +165,7 @@ export class SubscriptionManager {
         advancedEncryption: true,
         steganography: true,
         prioritySupport: true,
-        familySharing: status.plan === 'yearly' || status.plan === 'lifetime'
+        familySharing: status.plan === 'yearly' || status.plan === 'lifetime',
       };
     }
 
@@ -164,11 +180,14 @@ export class SubscriptionManager {
       advancedEncryption: false,
       steganography: false,
       prioritySupport: false,
-      familySharing: false
+      familySharing: false,
     };
   }
 
-  static async canCreateVault(): Promise<{ allowed: boolean; reason?: string }> {
+  static async canCreateVault(): Promise<{
+    allowed: boolean;
+    reason?: string;
+  }> {
     const limits = await this.getSubscriptionLimits();
 
     if (limits.maxVaults === -1) {
@@ -179,7 +198,7 @@ export class SubscriptionManager {
     if (usage.vaultCount >= limits.maxVaults) {
       return {
         allowed: false,
-        reason: `Free plan limited to ${limits.maxVaults} vaults. Upgrade to Premium for unlimited vaults and advanced security features.`
+        reason: `Free plan limited to ${limits.maxVaults} vaults. Upgrade to Premium for unlimited vaults and advanced security features.`,
       };
     }
 
@@ -197,7 +216,7 @@ export class SubscriptionManager {
     if (usage.photoCount >= limits.maxPhotos) {
       return {
         allowed: false,
-        reason: `Free plan limited to ${limits.maxPhotos} photos. Upgrade to Premium for unlimited storage.`
+        reason: `Free plan limited to ${limits.maxPhotos} photos. Upgrade to Premium for unlimited storage.`,
       };
     }
 
@@ -215,7 +234,7 @@ export class SubscriptionManager {
     if (usage.videoCount >= limits.maxVideos) {
       return {
         allowed: false,
-        reason: `Free plan limited to ${limits.maxVideos} videos. Upgrade to Premium for unlimited storage.`
+        reason: `Free plan limited to ${limits.maxVideos} videos. Upgrade to Premium for unlimited storage.`,
       };
     }
 
@@ -233,14 +252,16 @@ export class SubscriptionManager {
     if (usage.audioCount >= limits.maxAudio) {
       return {
         allowed: false,
-        reason: `Free plan limited to ${limits.maxAudio} audio files. Upgrade to Premium for unlimited storage.`
+        reason: `Free plan limited to ${limits.maxAudio} audio files. Upgrade to Premium for unlimited storage.`,
       };
     }
 
     return { allowed: true };
   }
 
-  static async incrementUsage(type: 'photo' | 'video' | 'audio' | 'vault'): Promise<void> {
+  static async incrementUsage(
+    type: 'photo' | 'video' | 'audio' | 'vault'
+  ): Promise<void> {
     try {
       const usage = await this.getUsageStats();
 
@@ -254,15 +275,18 @@ export class SubscriptionManager {
         usage.vaultCount++;
       }
 
-      const encryptedUsage = await SecurityManager.encryptData(JSON.stringify(usage));
+      const encryptedUsage = await SecurityManager.encryptData(
+        JSON.stringify(usage)
+      );
       await SecureStore.setItemAsync(this.USAGE_KEY, encryptedUsage);
     } catch (error) {
       console.error('Failed to increment usage:', error);
     }
   }
 
-
-  static async decrementUsage(type: 'photo' | 'video' | 'audio' | 'vault'): Promise<void> {
+  static async decrementUsage(
+    type: 'photo' | 'video' | 'audio' | 'vault'
+  ): Promise<void> {
     try {
       const usage = await this.getUsageStats();
 
@@ -276,33 +300,63 @@ export class SubscriptionManager {
         usage.vaultCount--;
       }
 
-      const encryptedUsage = await SecurityManager.encryptData(JSON.stringify(usage));
+      const encryptedUsage = await SecurityManager.encryptData(
+        JSON.stringify(usage)
+      );
       await SecureStore.setItemAsync(this.USAGE_KEY, encryptedUsage);
     } catch (error) {
       console.error('Failed to decrement usage:', error);
     }
   }
 
-
-  static async getUsageStats(): Promise<{ photoCount: number; videoCount: number; audioCount: number; vaultCount: number; storageUsedGB: number }> {
+  static async getUsageStats(): Promise<{
+    photoCount: number;
+    videoCount: number;
+    audioCount: number;
+    vaultCount: number;
+    storageUsedGB: number;
+  }> {
     try {
       const encryptedUsage = await SecureStore.getItemAsync(this.USAGE_KEY);
       if (!encryptedUsage) {
-        return { photoCount: 0, videoCount: 0, audioCount: 0, vaultCount: 0, storageUsedGB: 0 };
+        return {
+          photoCount: 0,
+          videoCount: 0,
+          audioCount: 0,
+          vaultCount: 0,
+          storageUsedGB: 0,
+        };
       }
 
       try {
-        const decryptedUsage = await SecurityManager.decryptData(encryptedUsage);
+        const decryptedUsage = await SecurityManager.decryptData(
+          encryptedUsage
+        );
         return JSON.parse(decryptedUsage);
       } catch (decryptError) {
-        console.warn('Failed to decrypt usage stats, returning defaults:', decryptError);
+        console.warn(
+          'Failed to decrypt usage stats, returning defaults:',
+          decryptError
+        );
         // Clear corrupted data and return defaults
         await SecureStore.deleteItemAsync(this.USAGE_KEY);
-        return { photoCount: 0, videoCount: 0, audioCount: 0, vaultCount: 0, storageUsedGB: 0 };
+        return {
+          photoCount: 0,
+          videoCount: 0,
+          audioCount: 0,
+          vaultCount: 0,
+          storageUsedGB: 0,
+        };
       }
     } catch (error) {
       console.error('Failed to get usage stats:', error);
-      return { photoCount: 0, videoCount: 0, audioCount: 0, vaultCount: 0, storageUsedGB: 0 };
+      return {
+        photoCount: 0,
+        videoCount: 0,
+        audioCount: 0,
+        vaultCount: 0,
+        storageUsedGB: 0,
+      };
     }
   }
 
@@ -312,20 +366,25 @@ export class SubscriptionManager {
       const sizeInGB = sizeInBytes / (1024 * 1024 * 1024);
       usage.storageUsedGB += sizeInGB;
 
-      const encryptedUsage = await SecurityManager.encryptData(JSON.stringify(usage));
+      const encryptedUsage = await SecurityManager.encryptData(
+        JSON.stringify(usage)
+      );
       await SecureStore.setItemAsync(this.USAGE_KEY, encryptedUsage);
     } catch (error) {
       console.error('Failed to update storage usage:', error);
     }
   }
 
-  static async canUploadFile(fileSizeBytes: number): Promise<{ allowed: boolean; reason?: string }> {
+  static async canUploadFile(
+    fileSizeBytes: number
+  ): Promise<{ allowed: boolean; reason?: string }> {
     const limits = await this.getSubscriptionLimits();
 
     if (limits.cloudStorageGB === 0) {
       return {
         allowed: false,
-        reason: 'Cloud storage not available on free plan. Upgrade to Premium for cloud backup.'
+        reason:
+          'Cloud storage not available on free plan. Upgrade to Premium for cloud backup.',
       };
     }
 
@@ -334,17 +393,26 @@ export class SubscriptionManager {
     const totalAfterUpload = usage.storageUsedGB + fileSizeGB;
 
     if (totalAfterUpload > limits.cloudStorageGB) {
-      const remainingGB = Math.max(0, limits.cloudStorageGB - usage.storageUsedGB);
+      const remainingGB = Math.max(
+        0,
+        limits.cloudStorageGB - usage.storageUsedGB
+      );
       return {
         allowed: false,
-        reason: `Not enough cloud storage. You have ${remainingGB.toFixed(2)}GB remaining of ${limits.cloudStorageGB}GB.`
+        reason: `Not enough cloud storage. You have ${remainingGB.toFixed(
+          2
+        )}GB remaining of ${limits.cloudStorageGB}GB.`,
       };
     }
 
     return { allowed: true };
   }
 
-  static async getStorageInfo(): Promise<{ used: number; total: number; percentage: number }> {
+  static async getStorageInfo(): Promise<{
+    used: number;
+    total: number;
+    percentage: number;
+  }> {
     const limits = await this.getSubscriptionLimits();
     const usage = await this.getUsageStats();
 
@@ -359,7 +427,7 @@ export class SubscriptionManager {
     return {
       isActive: false,
       plan: 'free',
-      features: this.getFreeFeatures()
+      features: this.getFreeFeatures(),
     };
   }
 
@@ -371,7 +439,7 @@ export class SubscriptionManager {
       'Up to 3 secure vaults',
       'Basic PIN/biometric lock',
       'Local storage only',
-      'Standard support'
+      'Standard support',
     ];
   }
 
@@ -386,7 +454,7 @@ export class SubscriptionManager {
       'Advanced security analytics',
       'Custom vault themes',
       'Export to multiple formats',
-      'Family sharing'
+      'Family sharing',
     ];
   }
 
@@ -406,7 +474,7 @@ export class SubscriptionManager {
       'prioritySupport',
       'familySharing',
       'customThemes',
-      'advancedAnalytics'
+      'advancedAnalytics',
     ];
 
     return premiumFeatures.includes(feature);
@@ -417,5 +485,83 @@ export class SubscriptionManager {
     const isActive = await this.checkSubscriptionExpiry();
 
     return isActive && (status.plan === 'yearly' || status.plan === 'lifetime');
+  }
+
+  static async isActiveOrNot(customerInfo: any): Promise<boolean> {
+    // Check if any entitlement is actually active (not expired)
+    const activeEntitlements: any = Object.values(
+      customerInfo.entitlements.active
+    );
+
+    for (const entitlement of activeEntitlements) {
+      if (entitlement?.isActive) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  static async handleSubscriptionUpdate(): Promise<any> {
+    try {
+      const customerInfo = await Purchases.getCustomerInfo();
+      console.log('customerInfo', customerInfo);
+
+      const hasLifetimePurchase =
+        customerInfo.nonSubscriptionTransactions.length > 0;
+      const hasActiveSubscription = customerInfo.activeSubscriptions.length > 0;
+      const currentStatus = await this.getSubscriptionStatus();
+
+      const isRevanueCatActive = await this.isActiveOrNot(customerInfo);
+      if (!isRevanueCatActive && currentStatus.plan !== 'free') {
+        // No active subscription or purchase - set to free
+        if (currentStatus.isActive) {
+          await this.cancelSubscription();
+          return customerInfo;
+        }
+      }
+
+      // User has some form of premium access
+      if (hasLifetimePurchase && currentStatus.plan !== 'lifetime') {
+        await this.activateSubscription('lifetime');
+        return customerInfo;
+      }
+
+      const activeSubscriptions = customerInfo?.activeSubscriptions;
+
+      // Determine plan type based on subscription IDs
+      let planType: 'monthly' | 'yearly' | 'lifetime' = 'monthly';
+
+      for (const subId of activeSubscriptions) {
+        if (subId.includes('yearly') || subId.includes('annual')) {
+          planType = 'yearly';
+          break;
+        } else if (subId.includes('lifetime')) {
+          planType = 'lifetime';
+          break;
+        }
+      }
+
+      if (
+        hasActiveSubscription &&
+        currentStatus.plan !== 'yearly' &&
+        planType == 'yearly'
+      ) {
+        await this.activateSubscription('yearly');
+      }
+
+      if (
+        hasActiveSubscription &&
+        currentStatus.plan !== 'monthly' &&
+        planType == 'monthly'
+      ) {
+        await this.activateSubscription('monthly');
+      }
+
+      return customerInfo;
+    } catch (error) {
+      console.error('Failed to update subscription status:', error);
+      return {};
+    }
   }
 }

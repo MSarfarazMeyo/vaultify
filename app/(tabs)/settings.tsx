@@ -1,7 +1,31 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Switch, Platform } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Alert,
+  Switch,
+  Platform,
+} from 'react-native';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'expo-router';
-import { Shield, User, Lock, Bell, Smartphone, Trash2, LogOut, Crown, Users, Settings as SettingsIcon, Eye, EyeOff, Fingerprint, Cloud } from 'lucide-react-native';
+import {
+  Shield,
+  User,
+  Lock,
+  Bell,
+  Smartphone,
+  Trash2,
+  LogOut,
+  Crown,
+  Users,
+  Settings as SettingsIcon,
+  Eye,
+  EyeOff,
+  Fingerprint,
+  Cloud,
+} from 'lucide-react-native';
 import { SecurityManager } from '@/utils/SecurityManager';
 import { SubscriptionManager } from '@/utils/SubscriptionManager';
 import * as LocalAuthentication from 'expo-local-authentication';
@@ -9,10 +33,13 @@ import PremiumFeatureCard from '@/components/PremiumFeatureCard';
 import FamilyManagementModal from '@/components/FamilyManagementModal';
 import StorageIndicator from '@/components/StorageIndicator';
 import PasswordChangeModal from '@/components/PasswordChangeModal';
+import { AuthManager } from '@/utils/AuthManager';
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const [securityLevel, setSecurityLevel] = useState<'high' | 'medium' | 'low'>('high');
+  const [securityLevel, setSecurityLevel] = useState<'high' | 'medium' | 'low'>(
+    'high'
+  );
   const [biometricEnabled, setBiometricEnabled] = useState(false);
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [biometricType, setBiometricType] = useState<string>('');
@@ -31,22 +58,15 @@ export default function SettingsScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    // Set up periodic sync to stay in sync with Security screen
-    const interval = setInterval(() => {
-      loadSettings();
-    }, 1000); // Check for updates every second
-    
-    return () => clearInterval(interval);
-  }, []);
-
   const loadSettings = async () => {
     try {
       const [settings, subscription] = await Promise.all([
         SecurityManager.getUserSettings(),
-        SubscriptionManager.getSubscriptionStatus()
+        SubscriptionManager.getSubscriptionStatus(),
       ]);
-      
+
+      console.log('subscription', subscription);
+
       if (settings) {
         setSecurityLevel(settings.securityLevel || 'high');
         setAutoLock(settings.autoLock ?? true);
@@ -54,7 +74,7 @@ export default function SettingsScreen() {
         setBiometricEnabled(settings.biometricEnabled ?? false);
         setCloudBackup(settings.cloudBackup ?? false);
       }
-      
+
       setSubscriptionStatus(subscription);
     } catch (error) {
       console.error('Failed to load settings:', error);
@@ -74,13 +94,20 @@ export default function SettingsScreen() {
     try {
       const compatible = await LocalAuthentication.hasHardwareAsync();
       const enrolled = await LocalAuthentication.isEnrolledAsync();
-      const types = await LocalAuthentication.supportedAuthenticationTypesAsync();
-      
+      const types =
+        await LocalAuthentication.supportedAuthenticationTypesAsync();
+
       setBiometricAvailable(compatible && enrolled);
-      
-      if (types.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION)) {
+
+      if (
+        types.includes(
+          LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION
+        )
+      ) {
         setBiometricType('Face ID');
-      } else if (types.includes(LocalAuthentication.AuthenticationType.FINGERPRINT)) {
+      } else if (
+        types.includes(LocalAuthentication.AuthenticationType.FINGERPRINT)
+      ) {
         setBiometricType('Touch ID');
       } else {
         setBiometricType('Biometric');
@@ -96,29 +123,31 @@ export default function SettingsScreen() {
     const currentIndex = levels.indexOf(securityLevel);
     const nextIndex = (currentIndex + 1) % levels.length;
     const newLevel = levels[nextIndex];
-    
+
     try {
       setSecurityLevel(newLevel);
-      
+
       const currentSettings = await SecurityManager.getUserSettings();
       const updatedSettings = {
         ...currentSettings,
         securityLevel: newLevel,
-        updatedAt: Date.now()
+        updatedAt: Date.now(),
       };
-      
+
       await SecurityManager.saveUserSettings(updatedSettings);
       await SecurityManager.applySecurityLevel(newLevel);
-      
+
       const levelDescriptions = {
         high: 'Maximum security with all features enabled',
         medium: 'Balanced security with essential features',
-        low: 'Basic security with minimal restrictions'
+        low: 'Basic security with minimal restrictions',
       };
-      
+
       Alert.alert(
         'Security Level Changed',
-        `Security level set to ${newLevel.toUpperCase()}: ${levelDescriptions[newLevel]}`,
+        `Security level set to ${newLevel.toUpperCase()}: ${
+          levelDescriptions[newLevel]
+        }`,
         [{ text: 'OK' }]
       );
     } catch (error) {
@@ -130,12 +159,18 @@ export default function SettingsScreen() {
 
   const handleBiometricToggle = async (enabled: boolean) => {
     if (Platform.OS === 'web') {
-      Alert.alert('Not Available', 'Biometric authentication is not available on web platform');
+      Alert.alert(
+        'Not Available',
+        'Biometric authentication is not available on web platform'
+      );
       return;
     }
 
     if (!biometricAvailable) {
-      Alert.alert('Not Available', 'Biometric authentication is not set up on this device');
+      Alert.alert(
+        'Not Available',
+        'Biometric authentication is not set up on this device'
+      );
       return;
     }
 
@@ -148,15 +183,18 @@ export default function SettingsScreen() {
 
         if (result.success) {
           setBiometricEnabled(true);
-          
+
           const currentSettings = await SecurityManager.getUserSettings();
-          await SecurityManager.saveUserSettings({ 
+          await SecurityManager.saveUserSettings({
             ...currentSettings,
             biometricEnabled: true,
-            updatedAt: Date.now()
+            updatedAt: Date.now(),
           });
           SecurityManager.logSecurityEvent('biometric_auth_enabled');
-          Alert.alert('Success', `${biometricType} has been enabled for authentication`);
+          Alert.alert(
+            'Success',
+            `${biometricType} has been enabled for authentication`
+          );
         } else {
           Alert.alert('Authentication Failed', 'Please try again');
         }
@@ -166,27 +204,30 @@ export default function SettingsScreen() {
       }
     } else {
       setBiometricEnabled(false);
-      
+
       const currentSettings = await SecurityManager.getUserSettings();
-      await SecurityManager.saveUserSettings({ 
+      await SecurityManager.saveUserSettings({
         ...currentSettings,
         biometricEnabled: false,
-        updatedAt: Date.now()
+        updatedAt: Date.now(),
       });
       SecurityManager.logSecurityEvent('biometric_auth_disabled');
-      Alert.alert('Disabled', `${biometricType} authentication has been disabled`);
+      Alert.alert(
+        'Disabled',
+        `${biometricType} authentication has been disabled`
+      );
     }
   };
 
   const handleAutoLockToggle = async (enabled: boolean) => {
     try {
       setAutoLock(enabled);
-      
+
       const currentSettings = await SecurityManager.getUserSettings();
-      await SecurityManager.saveUserSettings({ 
+      await SecurityManager.saveUserSettings({
         ...currentSettings,
         autoLock: enabled,
-        updatedAt: Date.now()
+        updatedAt: Date.now(),
       });
       SecurityManager.logSecurityEvent('auto_lock_changed', { enabled });
     } catch (error) {
@@ -199,14 +240,16 @@ export default function SettingsScreen() {
   const handleBreakInDetectionToggle = async (enabled: boolean) => {
     try {
       setBreakInDetection(enabled);
-      
+
       const currentSettings = await SecurityManager.getUserSettings();
-      await SecurityManager.saveUserSettings({ 
+      await SecurityManager.saveUserSettings({
         ...currentSettings,
         breakInDetection: enabled,
-        updatedAt: Date.now()
+        updatedAt: Date.now(),
       });
-      SecurityManager.logSecurityEvent('break_in_detection_changed', { enabled });
+      SecurityManager.logSecurityEvent('break_in_detection_changed', {
+        enabled,
+      });
     } catch (error) {
       console.error('Failed to toggle break-in detection:', error);
       setBreakInDetection(!enabled); // Revert on error
@@ -222,7 +265,7 @@ export default function SettingsScreen() {
         'Cloud backup requires a premium subscription. Would you like to upgrade?',
         [
           { text: 'Cancel', style: 'cancel' },
-          { text: 'Upgrade', onPress: () => router.push('/paywall') }
+          { text: 'Upgrade', onPress: () => router.push('/paywall') },
         ]
       );
       return;
@@ -230,16 +273,16 @@ export default function SettingsScreen() {
 
     try {
       setCloudBackup(enabled);
-      
+
       const currentSettings = await SecurityManager.getUserSettings();
-      await SecurityManager.saveUserSettings({ 
+      await SecurityManager.saveUserSettings({
         ...currentSettings,
         cloudBackup: enabled,
-        updatedAt: Date.now()
+        updatedAt: Date.now(),
       });
-      
+
       SecurityManager.logSecurityEvent('cloud_backup_changed', { enabled });
-      
+
       if (enabled) {
         Alert.alert(
           'Cloud Backup Enabled',
@@ -278,15 +321,15 @@ export default function SettingsScreen() {
                 [
                   {
                     text: 'OK',
-                    onPress: () => router.replace('/')
-                  }
+                    onPress: () => router.replace('/'),
+                  },
                 ]
               );
             } catch (error) {
               Alert.alert('Error', 'Failed to delete data');
             }
-          }
-        }
+          },
+        },
       ]
     );
   };
@@ -302,32 +345,40 @@ export default function SettingsScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              await SecurityManager.logout();
-              router.replace('/');
+              await AuthManager.signOut();
+              router.replace('/auth');
             } catch (error) {
               Alert.alert('Error', 'Failed to logout');
             }
-          }
-        }
+          },
+        },
       ]
     );
   };
 
   const getSecurityLevelColor = () => {
     switch (securityLevel) {
-      case 'high': return '#34C759';
-      case 'medium': return '#FF9500';
-      case 'low': return '#FF3B30';
-      default: return '#34C759';
+      case 'high':
+        return '#34C759';
+      case 'medium':
+        return '#FF9500';
+      case 'low':
+        return '#FF3B30';
+      default:
+        return '#34C759';
     }
   };
 
   const getSecurityLevelDescription = () => {
     switch (securityLevel) {
-      case 'high': return 'Maximum protection with all security features';
-      case 'medium': return 'Balanced security with essential features';
-      case 'low': return 'Basic protection with minimal restrictions';
-      default: return 'Maximum protection with all security features';
+      case 'high':
+        return 'Maximum protection with all security features';
+      case 'medium':
+        return 'Balanced security with essential features';
+      case 'low':
+        return 'Basic protection with minimal restrictions';
+      default:
+        return 'Maximum protection with all security features';
     }
   };
 
@@ -357,8 +408,8 @@ export default function SettingsScreen() {
         {/* Security Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Security</Text>
-          
-          <TouchableOpacity 
+
+          <TouchableOpacity
             style={styles.settingItem}
             onPress={() => setShowPasswordModal(true)}
           >
@@ -373,7 +424,7 @@ export default function SettingsScreen() {
             </View>
           </TouchableOpacity>
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.settingItem}
             onPress={handleSecurityLevelChange}
           >
@@ -386,7 +437,12 @@ export default function SettingsScreen() {
                 {securityLevel.toUpperCase()} - {getSecurityLevelDescription()}
               </Text>
             </View>
-            <View style={[styles.securityLevelIndicator, { backgroundColor: getSecurityLevelColor() }]} />
+            <View
+              style={[
+                styles.securityLevelIndicator,
+                { backgroundColor: getSecurityLevelColor() },
+              ]}
+            />
           </TouchableOpacity>
 
           {biometricAvailable && Platform.OS !== 'web' && (
@@ -415,12 +471,13 @@ export default function SettingsScreen() {
                 <Fingerprint size={20} color="#8E8E93" />
               </View>
               <View style={styles.settingContent}>
-                <Text style={[styles.settingLabel, { color: '#8E8E93' }]}>Biometric Authentication</Text>
+                <Text style={[styles.settingLabel, { color: '#8E8E93' }]}>
+                  Biometric Authentication
+                </Text>
                 <Text style={styles.settingDescription}>
-                  {Platform.OS === 'web' 
+                  {Platform.OS === 'web'
                     ? 'Not available on web platform'
-                    : 'Not available - Set up biometrics in device settings'
-                  }
+                    : 'Not available - Set up biometrics in device settings'}
                 </Text>
               </View>
             </View>
@@ -469,10 +526,9 @@ export default function SettingsScreen() {
             <View style={styles.settingContent}>
               <Text style={styles.settingLabel}>Cloud Backup</Text>
               <Text style={styles.settingDescription}>
-                {subscriptionStatus?.isActive 
+                {subscriptionStatus?.isActive
                   ? 'Automatically backup your data to secure cloud storage'
-                  : 'Requires premium subscription for secure cloud backup'
-                }
+                  : 'Requires premium subscription for secure cloud backup'}
               </Text>
             </View>
             <Switch
@@ -495,7 +551,7 @@ export default function SettingsScreen() {
               'Advanced AES-256 encryption',
               'Cloud backup with 2FA',
               'Break-in photo capture',
-              'Priority support'
+              'Priority support',
             ]}
           />
         )}
@@ -503,8 +559,8 @@ export default function SettingsScreen() {
         {/* Family Sharing */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Family</Text>
-            
-          <TouchableOpacity 
+
+          <TouchableOpacity
             style={styles.settingItem}
             onPress={() => router.push('/family')}
           >
@@ -514,10 +570,9 @@ export default function SettingsScreen() {
             <View style={styles.settingContent}>
               <Text style={styles.settingLabel}>Family Sharing</Text>
               <Text style={styles.settingDescription}>
-                {subscriptionStatus?.isActive 
+                {subscriptionStatus?.isActive
                   ? 'Share premium features with family members'
-                  : 'Requires premium subscription'
-                }
+                  : 'Requires premium subscription'}
               </Text>
             </View>
             <Text style={styles.settingValue}>
@@ -529,8 +584,8 @@ export default function SettingsScreen() {
         {/* Account Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Account</Text>
-          
-          <TouchableOpacity 
+
+          <TouchableOpacity
             style={styles.settingItem}
             onPress={() => router.push('/paywall')}
           >
@@ -540,10 +595,9 @@ export default function SettingsScreen() {
             <View style={styles.settingContent}>
               <Text style={styles.settingLabel}>Subscription</Text>
               <Text style={styles.settingDescription}>
-                {subscriptionStatus?.isActive 
-                  ? `${subscriptionStatus.plan.toUpperCase()} Plan` 
-                  : 'Free Plan - Upgrade for more features'
-                }
+                {subscriptionStatus?.isActive
+                  ? `${subscriptionStatus.plan.toUpperCase()} Plan`
+                  : 'Free Plan - Upgrade for more features'}
               </Text>
             </View>
             <Text style={styles.settingValue}>
@@ -551,10 +605,7 @@ export default function SettingsScreen() {
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity 
-            style={styles.settingItem}
-            onPress={handleLogout}
-          >
+          <TouchableOpacity style={styles.settingItem} onPress={handleLogout}>
             <View style={styles.settingIcon}>
               <LogOut size={20} color="#007AFF" />
             </View>
@@ -569,9 +620,11 @@ export default function SettingsScreen() {
 
         {/* Danger Zone */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: '#FF3B30' }]}>Danger Zone</Text>
-          
-          <TouchableOpacity 
+          <Text style={[styles.sectionTitle, { color: '#FF3B30' }]}>
+            Danger Zone
+          </Text>
+
+          <TouchableOpacity
             style={[styles.settingItem, styles.dangerItem]}
             onPress={handleDeleteAllData}
           >
@@ -579,7 +632,9 @@ export default function SettingsScreen() {
               <Trash2 size={20} color="#FF3B30" />
             </View>
             <View style={styles.settingContent}>
-              <Text style={[styles.settingLabel, { color: '#FF3B30' }]}>Delete All Data</Text>
+              <Text style={[styles.settingLabel, { color: '#FF3B30' }]}>
+                Delete All Data
+              </Text>
               <Text style={styles.settingDescription}>
                 Permanently delete all vaults and photos
               </Text>
@@ -590,7 +645,9 @@ export default function SettingsScreen() {
         {/* App Info */}
         <View style={styles.appInfo}>
           <Text style={styles.appInfoText}>Vaultify v1.0.0</Text>
-          <Text style={styles.appInfoText}>Built with end-to-end encryption</Text>
+          <Text style={styles.appInfoText}>
+            Built with end-to-end encryption
+          </Text>
         </View>
       </ScrollView>
 

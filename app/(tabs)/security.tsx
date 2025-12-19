@@ -1,6 +1,22 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Switch } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Alert,
+  Switch,
+} from 'react-native';
 import { useState, useEffect } from 'react';
-import { Shield, TriangleAlert as AlertTriangle, Eye, Camera, MapPin, Clock, Settings } from 'lucide-react-native';
+import {
+  Shield,
+  TriangleAlert as AlertTriangle,
+  Eye,
+  Camera,
+  MapPin,
+  Clock,
+  Settings,
+} from 'lucide-react-native';
 import { SecurityManager } from '@/utils/SecurityManager';
 
 interface SecurityEvent {
@@ -14,7 +30,9 @@ export default function SecurityScreen() {
   const [securityEvents, setSecurityEvents] = useState<SecurityEvent[]>([]);
   const [breakInDetection, setBreakInDetection] = useState(true);
   const [autoLock, setAutoLock] = useState(true);
-  const [securityLevel, setSecurityLevel] = useState<'high' | 'medium' | 'low'>('high');
+  const [securityLevel, setSecurityLevel] = useState<'high' | 'medium' | 'low'>(
+    'high'
+  );
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -27,7 +45,7 @@ export default function SecurityScreen() {
     const interval = setInterval(() => {
       loadSecuritySettings();
     }, 1000); // Check for updates every second
-    
+
     return () => clearInterval(interval);
   }, []);
 
@@ -50,15 +68,17 @@ export default function SecurityScreen() {
 
   const handleBreakInDetectionChange = async (value: boolean) => {
     setBreakInDetection(value);
-    
+
     try {
       const currentSettings = await SecurityManager.getUserSettings();
-      await SecurityManager.saveUserSettings({ 
+      await SecurityManager.saveUserSettings({
         ...currentSettings,
         breakInDetection: value,
-        updatedAt: Date.now()
+        updatedAt: Date.now(),
       });
-      SecurityManager.logSecurityEvent('break_in_detection_changed', { enabled: value });
+      SecurityManager.logSecurityEvent('break_in_detection_changed', {
+        enabled: value,
+      });
     } catch (error) {
       console.error('Failed to update break-in detection:', error);
       setBreakInDetection(!value); // Revert on error
@@ -68,13 +88,13 @@ export default function SecurityScreen() {
 
   const handleAutoLockChange = async (value: boolean) => {
     setAutoLock(value);
-    
+
     try {
       const currentSettings = await SecurityManager.getUserSettings();
-      await SecurityManager.saveUserSettings({ 
+      await SecurityManager.saveUserSettings({
         ...currentSettings,
         autoLock: value,
-        updatedAt: Date.now()
+        updatedAt: Date.now(),
       });
       SecurityManager.logSecurityEvent('auto_lock_changed', { enabled: value });
     } catch (error) {
@@ -89,30 +109,32 @@ export default function SecurityScreen() {
     const currentIndex = levels.indexOf(securityLevel);
     const nextIndex = (currentIndex + 1) % levels.length;
     const newLevel = levels[nextIndex];
-    
+
     setSecurityLevel(newLevel);
-    
+
     const updateSecurityLevel = async () => {
       try {
         const currentSettings = await SecurityManager.getUserSettings();
-        await SecurityManager.saveUserSettings({ 
+        await SecurityManager.saveUserSettings({
           ...currentSettings,
           securityLevel: newLevel,
-          updatedAt: Date.now()
+          updatedAt: Date.now(),
         });
-        
+
         await SecurityManager.applySecurityLevel(newLevel);
-        
+
         // Show feedback about the change
         const levelDescriptions = {
           high: 'Maximum security with all features enabled',
           medium: 'Balanced security with essential features',
-          low: 'Basic security with minimal restrictions'
+          low: 'Basic security with minimal restrictions',
         };
-        
+
         Alert.alert(
           'Security Level Changed',
-          `Security level set to ${newLevel.toUpperCase()}: ${levelDescriptions[newLevel]}`,
+          `Security level set to ${newLevel.toUpperCase()}: ${
+            levelDescriptions[newLevel]
+          }`,
           [{ text: 'OK' }]
         );
       } catch (error) {
@@ -123,14 +145,13 @@ export default function SecurityScreen() {
         setSecurityLevel(levels[revertIndex]);
       }
     };
-    
+
     updateSecurityLevel();
   };
 
-
   const loadSecurityEvents = async () => {
     try {
-      const events = await SecurityManager.getSecurityEvents();
+      const events: any = await SecurityManager.getSecurityEvents();
       setSecurityEvents(events);
     } catch (error) {
       console.error('Failed to load security events:', error);
@@ -149,8 +170,8 @@ export default function SecurityScreen() {
           onPress: async () => {
             await SecurityManager.clearSecurityEvents();
             setSecurityEvents([]);
-          }
-        }
+          },
+        },
       ]
     );
   };
@@ -173,17 +194,17 @@ export default function SecurityScreen() {
   };
 
   const formatEventType = (type: string) => {
-    return type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    return type.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
   };
 
   const getSecurityScore = () => {
     const recentEvents = securityEvents.filter(
-      event => Date.now() - event.timestamp < 24 * 60 * 60 * 1000
+      (event) => Date.now() - event.timestamp < 24 * 60 * 60 * 1000
     );
     const failedAttempts = recentEvents.filter(
-      event => event.type === 'failed_login_attempt'
+      (event) => event.type === 'failed_login_attempt'
     ).length;
-    
+
     if (failedAttempts === 0) return 95;
     if (failedAttempts < 3) return 75;
     return 45;
@@ -200,8 +221,32 @@ export default function SecurityScreen() {
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.securityOverview}>
           <View style={styles.securityScore}>
-            <View style={[styles.scoreCircle, { borderColor: securityScore > 80 ? '#34C759' : securityScore > 60 ? '#FF9500' : '#FF3B30' }]}>
-              <Text style={[styles.scoreText, { color: securityScore > 80 ? '#34C759' : securityScore > 60 ? '#FF9500' : '#FF3B30' }]}>
+            <View
+              style={[
+                styles.scoreCircle,
+                {
+                  borderColor:
+                    securityScore > 80
+                      ? '#34C759'
+                      : securityScore > 60
+                      ? '#FF9500'
+                      : '#FF3B30',
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.scoreText,
+                  {
+                    color:
+                      securityScore > 80
+                        ? '#34C759'
+                        : securityScore > 60
+                        ? '#FF9500'
+                        : '#FF3B30',
+                  },
+                ]}
+              >
                 {securityScore}
               </Text>
             </View>
@@ -214,7 +259,11 @@ export default function SecurityScreen() {
             </View>
             <View style={styles.statItem}>
               <Text style={styles.statValue}>
-                {securityEvents.filter(e => e.type === 'failed_login_attempt').length}
+                {
+                  securityEvents.filter(
+                    (e) => e.type === 'failed_login_attempt'
+                  ).length
+                }
               </Text>
               <Text style={styles.statLabel}>Failed Attempts</Text>
             </View>
@@ -223,7 +272,7 @@ export default function SecurityScreen() {
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Security Settings</Text>
-          
+
           <View style={styles.settingItem}>
             <View style={styles.settingInfo}>
               <AlertTriangle size={20} color="#FF9500" />
@@ -250,23 +299,37 @@ export default function SecurityScreen() {
             />
           </View>
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.securityLevelButton}
             onPress={handleSecurityLevelChange}
           >
             <Shield size={20} color="#34C759" />
             <View style={styles.securityLevelContent}>
-              <Text style={styles.securityLevelText}>Security Level: {securityLevel.toUpperCase()}</Text>
+              <Text style={styles.securityLevelText}>
+                Security Level: {securityLevel.toUpperCase()}
+              </Text>
               <Text style={styles.securityLevelDescription}>
-                {securityLevel === 'high' && 'Maximum protection with all security features'}
-                {securityLevel === 'medium' && 'Balanced security with essential features'}
-                {securityLevel === 'low' && 'Basic protection with minimal restrictions'}
+                {securityLevel === 'high' &&
+                  'Maximum protection with all security features'}
+                {securityLevel === 'medium' &&
+                  'Balanced security with essential features'}
+                {securityLevel === 'low' &&
+                  'Basic protection with minimal restrictions'}
               </Text>
             </View>
-            <View style={[styles.securityLevelIndicator, { 
-              backgroundColor: securityLevel === 'high' ? '#34C759' : 
-                             securityLevel === 'medium' ? '#FF9500' : '#FF3B30' 
-            }]} />
+            <View
+              style={[
+                styles.securityLevelIndicator,
+                {
+                  backgroundColor:
+                    securityLevel === 'high'
+                      ? '#34C759'
+                      : securityLevel === 'medium'
+                      ? '#FF9500'
+                      : '#FF3B30',
+                },
+              ]}
+            />
           </TouchableOpacity>
         </View>
 
@@ -280,11 +343,11 @@ export default function SecurityScreen() {
 
           {securityEvents.slice(0, 10).map((event) => (
             <View key={event.id} style={styles.eventItem}>
-              <View style={styles.eventIcon}>
-                {getEventIcon(event.type)}
-              </View>
+              <View style={styles.eventIcon}>{getEventIcon(event.type)}</View>
               <View style={styles.eventInfo}>
-                <Text style={styles.eventType}>{formatEventType(event.type)}</Text>
+                <Text style={styles.eventType}>
+                  {formatEventType(event.type)}
+                </Text>
                 <Text style={styles.eventTime}>
                   {new Date(event.timestamp).toLocaleString()}
                 </Text>
@@ -295,7 +358,9 @@ export default function SecurityScreen() {
           {securityEvents.length === 0 && (
             <View style={styles.noEvents}>
               <Shield size={48} color="#8E8E93" />
-              <Text style={styles.noEventsText}>No security events recorded</Text>
+              <Text style={styles.noEventsText}>
+                No security events recorded
+              </Text>
             </View>
           )}
         </View>
@@ -311,7 +376,8 @@ export default function SecurityScreen() {
           <View style={styles.tipCard}>
             <Text style={styles.tipTitle}>Use Strong Passwords</Text>
             <Text style={styles.tipText}>
-              Use at least 12 characters with a mix of letters, numbers, and symbols
+              Use at least 12 characters with a mix of letters, numbers, and
+              symbols
             </Text>
           </View>
           <View style={styles.tipCard}>
@@ -515,5 +581,5 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Regular',
     color: '#8E8E93',
     lineHeight: 20,
-  }
+  },
 });

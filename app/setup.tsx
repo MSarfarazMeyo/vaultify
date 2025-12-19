@@ -1,8 +1,30 @@
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, Animated, Dimensions } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  ScrollView,
+  Alert,
+  Animated,
+  Dimensions,
+} from 'react-native';
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'expo-router';
-import { Shield, Eye, EyeOff, Check, X, Lock, Calculator, ArrowRight, Sparkles } from 'lucide-react-native';
+import {
+  Shield,
+  Eye,
+  EyeOff,
+  Check,
+  X,
+  Lock,
+  Calculator,
+  ArrowRight,
+  Sparkles,
+  Mail,
+} from 'lucide-react-native';
 import { SecurityManager } from '@/utils/SecurityManager';
+import { AuthManager } from '@/utils/AuthManager';
 import SecureStore from '@/utils/secureStorage';
 
 const { width, height } = Dimensions.get('window');
@@ -16,14 +38,13 @@ interface PasswordRequirement {
 export default function SetupScreen() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(0);
+  const [email, setEmail] = useState('');
   const [masterPassword, setMasterPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [calculatorPin, setCalculatorPin] = useState('');
-  const [confirmPin, setConfirmPin] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
-  
+
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
@@ -33,51 +54,46 @@ export default function SetupScreen() {
     {
       id: 'length',
       text: 'At least 12 characters long',
-      validator: (password) => password.length >= 12
+      validator: (password) => password.length >= 12,
     },
     {
       id: 'uppercase',
       text: 'Contains uppercase letter (A-Z)',
-      validator: (password) => /[A-Z]/.test(password)
+      validator: (password) => /[A-Z]/.test(password),
     },
     {
       id: 'lowercase',
       text: 'Contains lowercase letter (a-z)',
-      validator: (password) => /[a-z]/.test(password)
+      validator: (password) => /[a-z]/.test(password),
     },
     {
       id: 'number',
       text: 'Contains number (0-9)',
-      validator: (password) => /[0-9]/.test(password)
+      validator: (password) => /[0-9]/.test(password),
     },
     {
       id: 'special',
       text: 'Contains special character (!@#$%^&*)',
-      validator: (password) => /[!@#$%^&*(),.?":{}|<>]/.test(password)
-    }
+      validator: (password) => /[!@#$%^&*(),.?":{}|<>]/.test(password),
+    },
   ];
 
   const steps = [
     {
       title: 'Welcome to Vaultify',
-      subtitle: 'Let\'s set up your secure digital vault',
-      icon: <Shield size={64} color="#007AFF" />
+      subtitle: "Let's set up your secure digital vault",
+      icon: <Shield size={64} color="#007AFF" />,
     },
     {
-      title: 'Create Master Password',
-      subtitle: 'This password protects all your data',
-      icon: <Lock size={64} color="#34C759" />
-    },
-    {
-      title: 'Set Calculator PIN',
-      subtitle: 'Emergency access through calculator mode',
-      icon: <Calculator size={64} color="#FF9500" />
+      title: 'Create Account',
+      subtitle: 'Enter your email and create a secure password',
+      icon: <Mail size={64} color="#34C759" />,
     },
     {
       title: 'Setup Complete',
       subtitle: 'Your secure vault is ready to use',
-      icon: <Sparkles size={64} color="#AF52DE" />
-    }
+      icon: <Sparkles size={64} color="#AF52DE" />,
+    },
   ];
 
   useEffect(() => {
@@ -88,7 +104,7 @@ export default function SetupScreen() {
     // Reset animations
     fadeAnim.setValue(0);
     slideAnim.setValue(50);
-    
+
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -108,110 +124,117 @@ export default function SetupScreen() {
     ]).start();
   };
 
-  const validatePassword = () => {
+  const validateEmailAndPassword = () => {
+    if (!email.trim()) {
+      Alert.alert('Email Required', 'Please enter your email address');
+      return false;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      Alert.alert('Invalid Email', 'Please enter a valid email address');
+      return false;
+    }
+
     if (masterPassword.length < 12) {
-      Alert.alert('Weak Password', 'Password must be at least 12 characters long');
+      Alert.alert(
+        'Weak Password',
+        'Password must be at least 12 characters long'
+      );
       return false;
     }
-    
-    const failedRequirements = passwordRequirements.filter(req => !req.validator(masterPassword));
+
+    const failedRequirements = passwordRequirements.filter(
+      (req) => !req.validator(masterPassword)
+    );
     if (failedRequirements.length > 0) {
-      Alert.alert('Password Requirements', 'Please ensure your password meets all security requirements');
+      Alert.alert(
+        'Password Requirements',
+        'Please ensure your password meets all security requirements'
+      );
       return false;
     }
-    
+
     if (masterPassword !== confirmPassword) {
       Alert.alert('Password Mismatch', 'Passwords do not match');
       return false;
     }
-    
-    return true;
-  };
 
-  const validatePin = () => {
-    if (calculatorPin.length !== 4 || !/^\d{4}$/.test(calculatorPin)) {
-      Alert.alert('Invalid PIN', 'PIN must be exactly 4 digits');
-      return false;
-    }
-    
-    if (calculatorPin !== confirmPin) {
-      Alert.alert('PIN Mismatch', 'PINs do not match');
-      return false;
-    }
-    
-    if (calculatorPin === '0000' || calculatorPin === '1234' || calculatorPin === '1111') {
-      Alert.alert('Weak PIN', 'Please choose a more secure PIN');
-      return false;
-    }
-    
     return true;
   };
 
   const handleNext = async () => {
     if (currentStep === 1) {
-      if (!validatePassword()) return;
-    } else if (currentStep === 2) {
-      if (!validatePin()) return;
+      if (!validateEmailAndPassword()) return;
+      await completeSetup();
+      return;
     }
-    
+
+    if (currentStep === 2) {
+      router.replace('/paywall');
+
+      return;
+    }
+
     if (currentStep < steps.length - 1) {
       setCurrentStep(currentStep + 1);
-    } else {
-      await completeSetup();
     }
   };
 
   const completeSetup = async () => {
     setIsCreating(true);
-    
+
     try {
-      // Hash and store master password
-      const hashedPassword = await SecurityManager.hashPassword(masterPassword);
-      await SecureStore.setItemAsync('master_password', hashedPassword);
-      
-      // Store calculator PIN
-      await SecureStore.setItemAsync('calculator_pin', calculatorPin);
-      
-      // Generate and store encryption key
+      const { user, session } = await AuthManager.signUp(email, masterPassword);
+
+      if (!user || !session) {
+        throw new Error('Failed to create account');
+      }
+
       const encryptionKey = await SecurityManager.generateEncryptionKey();
       await SecureStore.setItemAsync('encryption_key', encryptionKey);
-      
-      // Mark setup as complete
       await SecureStore.setItemAsync('setup_complete', 'true');
-      
-      // Initialize default settings
+
       const defaultSettings = {
         breakInDetection: true,
         autoLock: true,
         securityLevel: 'high',
         biometricEnabled: false,
-        createdAt: Date.now()
+        createdAt: Date.now(),
+        userId: user.id,
       };
-      
-      const encryptedSettings = await SecurityManager.encryptData(JSON.stringify(defaultSettings));
+
+      const encryptedSettings = await SecurityManager.encryptData(
+        JSON.stringify(defaultSettings)
+      );
       await SecureStore.setItemAsync('user_settings', encryptedSettings);
-      
-      // Log setup completion
-      SecurityManager.logSecurityEvent('initial_setup_completed');
-      
-      // Navigate to main app
-      router.replace('/(tabs)');
-    } catch (error) {
+
+      SecurityManager.logSecurityEvent('initial_setup_completed', {
+        userId: user.id,
+        email: user.email,
+      });
+      if (currentStep < steps.length - 1) {
+        setCurrentStep(currentStep + 1);
+      }
+    } catch (error: any) {
       console.error('Setup failed:', error);
-      Alert.alert('Setup Failed', 'Failed to complete setup. Please try again.');
+      Alert.alert(
+        'Setup Failed',
+        error?.message || 'Failed to complete setup. Please try again.'
+      );
     } finally {
       setIsCreating(false);
     }
   };
 
   const renderWelcomeStep = () => (
-    <Animated.View 
+    <Animated.View
       style={[
         styles.stepContainer,
         {
           opacity: fadeAnim,
-          transform: [{ translateY: slideAnim }]
-        }
+          transform: [{ translateY: slideAnim }],
+        },
       ]}
     >
       <View style={styles.iconContainer}>
@@ -222,51 +245,76 @@ export default function SetupScreen() {
           <Sparkles size={14} color="#FFD700" style={styles.sparkle3} />
         </View>
       </View>
-      
+
       <Text style={styles.stepTitle}>{steps[currentStep].title}</Text>
       <Text style={styles.stepSubtitle}>{steps[currentStep].subtitle}</Text>
-      
+
       <View style={styles.featuresList}>
         <View style={styles.featureItem}>
           <Shield size={20} color="#34C759" />
-          <Text style={styles.featureText}>Military-grade AES-256 encryption</Text>
+          <Text style={styles.featureText}>
+            Military-grade AES-256 encryption
+          </Text>
         </View>
         <View style={styles.featureItem}>
           <Lock size={20} color="#007AFF" />
-          <Text style={styles.featureText}>Biometric authentication support</Text>
-        </View>
-        <View style={styles.featureItem}>
-          <Calculator size={20} color="#FF9500" />
-          <Text style={styles.featureText}>Hidden calculator mode for emergencies</Text>
+          <Text style={styles.featureText}>
+            Biometric authentication support
+          </Text>
         </View>
       </View>
-      
+
       <TouchableOpacity style={styles.primaryButton} onPress={handleNext}>
         <Text style={styles.primaryButtonText}>Get Started</Text>
+        <ArrowRight size={20} color="#FFFFFF" />
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.primaryButton2}
+        onPress={() => router.push('/auth')}
+      >
+        <Text style={styles.primaryButtonText}>
+          Already have an account? Sign In
+        </Text>
         <ArrowRight size={20} color="#FFFFFF" />
       </TouchableOpacity>
     </Animated.View>
   );
 
   const renderPasswordStep = () => (
-    <Animated.View 
+    <Animated.View
       style={[
         styles.stepContainer,
         {
           opacity: fadeAnim,
-          transform: [{ translateY: slideAnim }]
-        }
+          transform: [{ translateY: slideAnim }],
+        },
       ]}
     >
-      <View style={styles.iconContainer}>
-        {steps[currentStep].icon}
-      </View>
-      
+      <View style={styles.iconContainer}>{steps[currentStep].icon}</View>
+
       <Text style={styles.stepTitle}>{steps[currentStep].title}</Text>
       <Text style={styles.stepSubtitle}>{steps[currentStep].subtitle}</Text>
-      
+
       <View style={styles.inputContainer}>
-        <Text style={styles.inputLabel}>Master Password</Text>
+        <Text style={styles.inputLabel}>Email Address</Text>
+        <View style={styles.passwordInput}>
+          <Mail size={20} color="#8E8E93" style={styles.inputIcon} />
+          <TextInput
+            style={styles.textInput}
+            placeholder="Enter your email"
+            placeholderTextColor="#8E8E93"
+            value={email}
+            onChangeText={setEmail}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+        </View>
+      </View>
+
+      <View style={styles.inputContainer}>
+        <Text style={styles.inputLabel}>Password</Text>
         <View style={styles.passwordInput}>
           <TextInput
             style={styles.textInput}
@@ -326,10 +374,12 @@ export default function SetupScreen() {
               ) : (
                 <X size={16} color="#8E8E93" />
               )}
-              <Text style={[
-                styles.requirementText,
-                { color: isValid ? '#34C759' : '#8E8E93' }
-              ]}>
+              <Text
+                style={[
+                  styles.requirementText,
+                  { color: isValid ? '#34C759' : '#8E8E93' },
+                ]}
+              >
                 {requirement.text}
               </Text>
             </View>
@@ -337,108 +387,33 @@ export default function SetupScreen() {
         })}
       </View>
 
-      <TouchableOpacity 
+      <TouchableOpacity
         style={[
           styles.primaryButton,
-          (!masterPassword || !confirmPassword) && styles.disabledButton
-        ]} 
+          (!email || !masterPassword || !confirmPassword) &&
+            styles.disabledButton,
+        ]}
         onPress={handleNext}
-        disabled={!masterPassword || !confirmPassword}
+        disabled={!email || !masterPassword || !confirmPassword}
       >
-        <Text style={styles.primaryButtonText}>Continue</Text>
-        <ArrowRight size={20} color="#FFFFFF" />
-      </TouchableOpacity>
-    </Animated.View>
-  );
-
-  const renderPinStep = () => (
-    <Animated.View 
-      style={[
-        styles.stepContainer,
-        {
-          opacity: fadeAnim,
-          transform: [{ translateY: slideAnim }]
-        }
-      ]}
-    >
-      <View style={styles.iconContainer}>
-        {steps[currentStep].icon}
-      </View>
-      
-      <Text style={styles.stepTitle}>{steps[currentStep].title}</Text>
-      <Text style={styles.stepSubtitle}>{steps[currentStep].subtitle}</Text>
-      
-      <View style={styles.pinExplanation}>
-        <Text style={styles.pinExplanationText}>
-          In emergency situations, entering "000000" as your password will open a calculator. 
-          Your secret PIN will then unlock your vault through the calculator interface.
+        <Text style={styles.primaryButtonText}>
+          {' '}
+          {isCreating ? 'Creating Account...' : 'Create Account'}
         </Text>
-      </View>
 
-      <View style={styles.inputContainer}>
-        <Text style={styles.inputLabel}>Calculator PIN (4 digits)</Text>
-        <TextInput
-          style={[styles.textInput, styles.pinInput]}
-          placeholder="1234"
-          placeholderTextColor="#8E8E93"
-          value={calculatorPin}
-          onChangeText={(text) => {
-            if (/^\d{0,4}$/.test(text)) {
-              setCalculatorPin(text);
-            }
-          }}
-          keyboardType="numeric"
-          maxLength={4}
-          secureTextEntry
-        />
-      </View>
-
-      <View style={styles.inputContainer}>
-        <Text style={styles.inputLabel}>Confirm PIN</Text>
-        <TextInput
-          style={[styles.textInput, styles.pinInput]}
-          placeholder="1234"
-          placeholderTextColor="#8E8E93"
-          value={confirmPin}
-          onChangeText={(text) => {
-            if (/^\d{0,4}$/.test(text)) {
-              setConfirmPin(text);
-            }
-          }}
-          keyboardType="numeric"
-          maxLength={4}
-          secureTextEntry
-        />
-      </View>
-
-      <View style={styles.pinWarning}>
-        <Text style={styles.pinWarningText}>
-          ⚠️ Avoid common PINs like 0000, 1234, or 1111
-        </Text>
-      </View>
-
-      <TouchableOpacity 
-        style={[
-          styles.primaryButton,
-          (!calculatorPin || !confirmPin || calculatorPin.length !== 4) && styles.disabledButton
-        ]} 
-        onPress={handleNext}
-        disabled={!calculatorPin || !confirmPin || calculatorPin.length !== 4}
-      >
-        <Text style={styles.primaryButtonText}>Continue</Text>
         <ArrowRight size={20} color="#FFFFFF" />
       </TouchableOpacity>
     </Animated.View>
   );
 
   const renderCompleteStep = () => (
-    <Animated.View 
+    <Animated.View
       style={[
         styles.stepContainer,
         {
           opacity: fadeAnim,
-          transform: [{ translateY: slideAnim }]
-        }
+          transform: [{ translateY: slideAnim }],
+        },
       ]}
     >
       <View style={styles.iconContainer}>
@@ -449,18 +424,18 @@ export default function SetupScreen() {
           <Sparkles size={14} color="#FFD700" style={styles.sparkle3} />
         </View>
       </View>
-      
+
       <Text style={styles.stepTitle}>{steps[currentStep].title}</Text>
       <Text style={styles.stepSubtitle}>{steps[currentStep].subtitle}</Text>
-      
+
       <View style={styles.summaryContainer}>
         <View style={styles.summaryItem}>
-          <Lock size={20} color="#34C759" />
-          <Text style={styles.summaryText}>Master password created</Text>
+          <Mail size={20} color="#34C759" />
+          <Text style={styles.summaryText}>Account created successfully</Text>
         </View>
         <View style={styles.summaryItem}>
-          <Calculator size={20} color="#34C759" />
-          <Text style={styles.summaryText}>Emergency PIN configured</Text>
+          <Lock size={20} color="#34C759" />
+          <Text style={styles.summaryText}>Secure password configured</Text>
         </View>
         <View style={styles.summaryItem}>
           <Shield size={20} color="#34C759" />
@@ -468,14 +443,12 @@ export default function SetupScreen() {
         </View>
       </View>
 
-      <TouchableOpacity 
-        style={[styles.primaryButton, isCreating && styles.loadingButton]} 
+      <TouchableOpacity
+        style={[styles.primaryButton, isCreating && styles.loadingButton]}
         onPress={handleNext}
         disabled={isCreating}
       >
-        <Text style={styles.primaryButtonText}>
-          {isCreating ? 'Setting up...' : 'Enter Secure Vault'}
-        </Text>
+        <Text style={styles.primaryButtonText}>Continue</Text>
         {!isCreating && <ArrowRight size={20} color="#FFFFFF" />}
       </TouchableOpacity>
     </Animated.View>
@@ -488,8 +461,6 @@ export default function SetupScreen() {
       case 1:
         return renderPasswordStep();
       case 2:
-        return renderPinStep();
-      case 3:
         return renderCompleteStep();
       default:
         return renderWelcomeStep();
@@ -498,7 +469,7 @@ export default function SetupScreen() {
 
   return (
     <View style={styles.container}>
-      <ScrollView 
+      <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -506,7 +477,7 @@ export default function SetupScreen() {
         {/* Progress Bar */}
         <View style={styles.progressContainer}>
           <View style={styles.progressBar}>
-            <Animated.View 
+            <Animated.View
               style={[
                 styles.progressFill,
                 {
@@ -514,8 +485,8 @@ export default function SetupScreen() {
                     inputRange: [0, 1],
                     outputRange: ['0%', '100%'],
                   }),
-                }
-              ]} 
+                },
+              ]}
             />
           </View>
           <Text style={styles.progressText}>
@@ -655,16 +626,11 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Regular',
     color: '#FFFFFF',
   },
-  pinInput: {
-    backgroundColor: '#2C2C2E',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#48484A',
-    textAlign: 'center',
-    fontSize: 24,
-    fontFamily: 'Inter-Bold',
-    letterSpacing: 8,
+  inputIcon: {
+    marginLeft: 16,
+    marginRight: 12,
   },
+
   eyeButton: {
     padding: 16,
   },
@@ -691,37 +657,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Regular',
     marginLeft: 8,
   },
-  pinExplanation: {
-    width: '100%',
-    backgroundColor: 'rgba(0, 122, 255, 0.1)',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(0, 122, 255, 0.3)',
-  },
-  pinExplanationText: {
-    fontSize: 14,
-    fontFamily: 'Inter-Regular',
-    color: '#007AFF',
-    lineHeight: 20,
-    textAlign: 'center',
-  },
-  pinWarning: {
-    width: '100%',
-    backgroundColor: 'rgba(255, 149, 0, 0.1)',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 32,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 149, 0, 0.3)',
-  },
-  pinWarningText: {
-    fontSize: 12,
-    fontFamily: 'Inter-Medium',
-    color: '#FF9500',
-    textAlign: 'center',
-  },
+
   summaryContainer: {
     width: '100%',
     marginBottom: 40,
@@ -756,6 +692,23 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 8,
+  },
+
+  primaryButton2: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'transparent',
+    borderRadius: 16,
+    paddingVertical: 18,
+    paddingHorizontal: 32,
+    width: '100%',
+    shadowColor: '#007AFF',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+    marginTop: 12,
   },
   primaryButtonText: {
     fontSize: 18,
