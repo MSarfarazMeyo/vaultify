@@ -505,7 +505,6 @@ export class SubscriptionManager {
   static async handleSubscriptionUpdate(): Promise<any> {
     try {
       const customerInfo = await Purchases.getCustomerInfo();
-      console.log('customerInfo', customerInfo);
 
       const hasLifetimePurchase =
         customerInfo.nonSubscriptionTransactions.length > 0;

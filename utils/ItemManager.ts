@@ -3,7 +3,16 @@ import * as Crypto from 'expo-crypto';
 import { SecurityManager } from './SecurityManager';
 import { VaultManager } from './VaultManager';
 
-export type ItemType = 'photo' | 'video' | 'audio' | 'document' | 'card' | 'identity' | 'password' | 'file' | 'note';
+export type ItemType =
+  | 'photo'
+  | 'video'
+  | 'audio'
+  | 'document'
+  | 'card'
+  | 'identity'
+  | 'password'
+  | 'file'
+  | 'note';
 
 export interface BaseItem {
   id: string;
@@ -24,9 +33,9 @@ export interface PhotoItem extends BaseItem {
   thumbnail: string;
   size: number;
   hash: string;
-  imageUrl?: string;
-  thumbnailUrl?: string;
-  fullSizeUrl?: string;
+  imageUrl?: any;
+  thumbnailUrl?: any;
+  fullSizeUrl?: any;
 }
 
 export interface VideoItem extends BaseItem {
@@ -58,7 +67,13 @@ export interface AudioItem extends BaseItem {
 
 export interface DocumentItem extends BaseItem {
   type: 'document';
-  documentType: 'passport' | 'license' | 'insurance' | 'contract' | 'receipt' | 'other';
+  documentType:
+    | 'passport'
+    | 'license'
+    | 'insurance'
+    | 'contract'
+    | 'receipt'
+    | 'other';
   filename: string;
   encryptedData: string;
   size: number;
@@ -118,17 +133,26 @@ export interface NoteItem extends BaseItem {
   isMarkdown?: boolean;
 }
 
-export type SecureItem = PhotoItem | VideoItem | AudioItem | DocumentItem | CardItem | IdentityItem | PasswordItem | FileItem | NoteItem;
+export type SecureItem =
+  | PhotoItem
+  | VideoItem
+  | AudioItem
+  | DocumentItem
+  | CardItem
+  | IdentityItem
+  | PasswordItem
+  | FileItem
+  | NoteItem;
 
 export class ItemManager {
   private static readonly ITEMS_PREFIX = 'item_';
-  
+
   // Demo photo IDs for consistent demo experience
   private static readonly DEMO_PHOTO_IDS = [
     1040881, 1040880, 1040879, 1040878, 1040877, 1040876, 1040875, 1040874,
     1040873, 1040872, 1040871, 1040870, 1040869, 1040868, 1040867, 1040866,
     1040865, 1040864, 1040863, 1040862, 1040861, 1040860, 1040859, 1040858,
-    1040857, 1040856, 1040855, 1040854, 1040853, 1040852, 1040851, 1040850
+    1040857, 1040856, 1040855, 1040854, 1040853, 1040852, 1040851, 1040850,
   ];
 
   // Demo video IDs for consistent demo experience
@@ -136,10 +160,13 @@ export class ItemManager {
     3045163, 3045164, 3045165, 3045166, 3045167, 3045168, 3045169, 3045170,
     3045171, 3045172, 3045173, 3045174, 3045175, 3045176, 3045177, 3045178,
     3045179, 3045180, 3045181, 3045182, 3045183, 3045184, 3045185, 3045186,
-    3045187, 3045188, 3045189, 3045190, 3045191, 3045192, 3045193, 3045194
+    3045187, 3045188, 3045189, 3045190, 3045191, 3045192, 3045193, 3045194,
   ];
 
-  static async createItem(itemData: Partial<SecureItem>, vaultId: string): Promise<SecureItem> {
+  static async createItem(
+    itemData: Partial<SecureItem>,
+    vaultId: string
+  ): Promise<SecureItem> {
     try {
       const itemId = await this.generateItemId();
       const now = Date.now();
@@ -148,48 +175,96 @@ export class ItemManager {
 
       switch (itemData.type) {
         case 'photo':
-          item = await this.createPhotoItem(itemId, itemData as Partial<PhotoItem>, vaultId, now);
+          item = await this.createPhotoItem(
+            itemId,
+            itemData as Partial<PhotoItem>,
+            vaultId,
+            now
+          );
           break;
         case 'video':
-          item = await this.createVideoItem(itemId, itemData as Partial<VideoItem>, vaultId, now);
+          item = await this.createVideoItem(
+            itemId,
+            itemData as Partial<VideoItem>,
+            vaultId,
+            now
+          );
           break;
         case 'audio':
-          item = await this.createAudioItem(itemId, itemData as Partial<AudioItem>, vaultId, now);
+          item = await this.createAudioItem(
+            itemId,
+            itemData as Partial<AudioItem>,
+            vaultId,
+            now
+          );
           break;
         case 'document':
-          item = await this.createDocumentItem(itemId, itemData as Partial<DocumentItem>, vaultId, now);
+          item = await this.createDocumentItem(
+            itemId,
+            itemData as Partial<DocumentItem>,
+            vaultId,
+            now
+          );
           break;
         case 'card':
-          item = await this.createCardItem(itemId, itemData as Partial<CardItem>, vaultId, now);
+          item = await this.createCardItem(
+            itemId,
+            itemData as Partial<CardItem>,
+            vaultId,
+            now
+          );
           break;
         case 'identity':
-          item = await this.createIdentityItem(itemId, itemData as Partial<IdentityItem>, vaultId, now);
+          item = await this.createIdentityItem(
+            itemId,
+            itemData as Partial<IdentityItem>,
+            vaultId,
+            now
+          );
           break;
         case 'password':
-          item = await this.createPasswordItem(itemId, itemData as Partial<PasswordItem>, vaultId, now);
+          item = await this.createPasswordItem(
+            itemId,
+            itemData as Partial<PasswordItem>,
+            vaultId,
+            now
+          );
           break;
         case 'file':
-          item = await this.createFileItem(itemId, itemData as Partial<FileItem>, vaultId, now);
+          item = await this.createFileItem(
+            itemId,
+            itemData as Partial<FileItem>,
+            vaultId,
+            now
+          );
           break;
         case 'note':
-          item = await this.createNoteItem(itemId, itemData as Partial<NoteItem>, vaultId, now);
+          item = await this.createNoteItem(
+            itemId,
+            itemData as Partial<NoteItem>,
+            vaultId,
+            now
+          );
           break;
         default:
           throw new Error('Invalid item type');
       }
 
       // Store the item
-      await SecureStore.setItemAsync(this.ITEMS_PREFIX + itemId, JSON.stringify(item));
-      
+      await SecureStore.setItemAsync(
+        this.ITEMS_PREFIX + itemId,
+        JSON.stringify(item)
+      );
+
       // Add to vault
       await VaultManager.addItemToVault(vaultId, item);
 
       // Log the activity
-      SecurityManager.logSecurityEvent('item_added', { 
-        vaultId, 
+      SecurityManager.logSecurityEvent('item_added', {
+        vaultId,
         itemId: item.id,
         itemType: item.type,
-        itemName: item.name 
+        itemName: item.name,
       });
 
       return item;
@@ -199,13 +274,19 @@ export class ItemManager {
     }
   }
 
-  private static async createPhotoItem(id: string, data: Partial<PhotoItem>, vaultId: string, timestamp: number): Promise<PhotoItem> {
+  private static async createPhotoItem(
+    id: string,
+    data: Partial<PhotoItem>,
+    vaultId: string,
+    timestamp: number
+  ): Promise<PhotoItem> {
     // Store the actual photo data without encryption for display purposes
-    const actualPhotoData = (data as any).actualPhotoData || data.encryptedData || 'demo_photo_data';
+    const actualPhotoData =
+      (data as any).actualPhotoData || data.encryptedData || 'demo_photo_data';
     const imageUrl = data.imageUrl || null;
     const thumbnailUrl = data.thumbnailUrl || data.imageUrl || null;
     const fullSizeUrl = data.fullSizeUrl || data.imageUrl || null;
-    
+
     return {
       id,
       type: 'photo',
@@ -220,19 +301,28 @@ export class ItemManager {
       encryptedData: actualPhotoData, // Store actual data for now
       thumbnail: 'demo_thumbnail',
       size: data.size || 1024000,
-      hash: await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, id),
+      hash: await Crypto.digestStringAsync(
+        Crypto.CryptoDigestAlgorithm.SHA256,
+        id
+      ),
       imageUrl: imageUrl,
       thumbnailUrl: thumbnailUrl,
-      fullSizeUrl: fullSizeUrl
+      fullSizeUrl: fullSizeUrl,
     };
   }
 
-  private static async createVideoItem(id: string, data: Partial<VideoItem>, vaultId: string, timestamp: number): Promise<VideoItem> {
+  private static async createVideoItem(
+    id: string,
+    data: Partial<VideoItem>,
+    vaultId: string,
+    timestamp: number
+  ): Promise<VideoItem> {
     // Store the actual video data without encryption for display purposes
-    const actualVideoData = (data as any).actualVideoData || data.encryptedData || 'demo_video_data';
+    const actualVideoData =
+      (data as any).actualVideoData || data.encryptedData || 'demo_video_data';
     const videoUrl = data.videoUrl || null;
     const thumbnailUrl = data.thumbnailUrl || null;
-    
+
     return {
       id,
       type: 'video',
@@ -248,19 +338,28 @@ export class ItemManager {
       thumbnail: 'demo_thumbnail',
       duration: data.duration || 30,
       size: data.size || 5120000, // 5MB default
-      hash: await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, id),
+      hash: await Crypto.digestStringAsync(
+        Crypto.CryptoDigestAlgorithm.SHA256,
+        id
+      ),
       videoUrl: videoUrl,
       thumbnailUrl: thumbnailUrl,
       resolution: data.resolution || '1920x1080',
-      format: data.format || 'mp4'
+      format: data.format || 'mp4',
     };
   }
 
-  private static async createAudioItem(id: string, data: Partial<AudioItem>, vaultId: string, timestamp: number): Promise<AudioItem> {
+  private static async createAudioItem(
+    id: string,
+    data: Partial<AudioItem>,
+    vaultId: string,
+    timestamp: number
+  ): Promise<AudioItem> {
     // Store the actual audio data without encryption for display purposes
-    const actualAudioData = (data as any).actualAudioData || data.encryptedData || 'demo_audio_data';
+    const actualAudioData =
+      (data as any).actualAudioData || data.encryptedData || 'demo_audio_data';
     const audioUrl = data.audioUrl || null;
-    
+
     return {
       id,
       type: 'audio',
@@ -275,15 +374,23 @@ export class ItemManager {
       encryptedData: actualAudioData,
       duration: data.duration || 60,
       size: data.size || 1024000, // 1MB default
-      hash: await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, id),
+      hash: await Crypto.digestStringAsync(
+        Crypto.CryptoDigestAlgorithm.SHA256,
+        id
+      ),
       audioUrl: audioUrl,
       waveform: data.waveform || this.generateDemoWaveform(),
       format: data.format || 'm4a',
-      bitrate: data.bitrate || 128
+      bitrate: data.bitrate || 128,
     };
   }
 
-  private static async createDocumentItem(id: string, data: Partial<DocumentItem>, vaultId: string, timestamp: number): Promise<DocumentItem> {
+  private static async createDocumentItem(
+    id: string,
+    data: Partial<DocumentItem>,
+    vaultId: string,
+    timestamp: number
+  ): Promise<DocumentItem> {
     return {
       id,
       type: 'document',
@@ -296,16 +403,23 @@ export class ItemManager {
       notes: data.notes,
       documentType: data.documentType || 'other',
       filename: data.filename || `document_${id}.pdf`,
-      encryptedData: await SecurityManager.encryptData(data.encryptedData || 'demo_document_data'),
+      encryptedData: await SecurityManager.encryptData(
+        data.encryptedData || 'demo_document_data'
+      ),
       size: data.size || 512000,
       mimeType: data.mimeType || 'application/pdf',
       expiryDate: data.expiryDate,
       issuer: data.issuer,
-      documentNumber: data.documentNumber
+      documentNumber: data.documentNumber,
     };
   }
 
-  private static async createCardItem(id: string, data: Partial<CardItem>, vaultId: string, timestamp: number): Promise<CardItem> {
+  private static async createCardItem(
+    id: string,
+    data: Partial<CardItem>,
+    vaultId: string,
+    timestamp: number
+  ): Promise<CardItem> {
     return {
       id,
       type: 'card',
@@ -318,15 +432,24 @@ export class ItemManager {
       notes: data.notes,
       cardType: data.cardType || 'credit',
       cardNumber: await SecurityManager.encryptData(data.cardNumber || ''),
-      expiryDate: data.expiryDate ? await SecurityManager.encryptData(data.expiryDate) : undefined,
+      expiryDate: data.expiryDate
+        ? await SecurityManager.encryptData(data.expiryDate)
+        : undefined,
       cvv: data.cvv ? await SecurityManager.encryptData(data.cvv) : undefined,
-      cardholderName: data.cardholderName ? await SecurityManager.encryptData(data.cardholderName) : undefined,
+      cardholderName: data.cardholderName
+        ? await SecurityManager.encryptData(data.cardholderName)
+        : undefined,
       issuer: data.issuer,
-      color: data.color || '#007AFF'
+      color: data.color || '#007AFF',
     };
   }
 
-  private static async createIdentityItem(id: string, data: Partial<IdentityItem>, vaultId: string, timestamp: number): Promise<IdentityItem> {
+  private static async createIdentityItem(
+    id: string,
+    data: Partial<IdentityItem>,
+    vaultId: string,
+    timestamp: number
+  ): Promise<IdentityItem> {
     return {
       id,
       type: 'identity',
@@ -338,17 +461,32 @@ export class ItemManager {
       isFavorite: data.isFavorite || false,
       notes: data.notes,
       identityType: data.identityType || 'other',
-      firstName: data.firstName ? await SecurityManager.encryptData(data.firstName) : undefined,
-      lastName: data.lastName ? await SecurityManager.encryptData(data.lastName) : undefined,
-      dateOfBirth: data.dateOfBirth ? await SecurityManager.encryptData(data.dateOfBirth) : undefined,
-      idNumber: data.idNumber ? await SecurityManager.encryptData(data.idNumber) : undefined,
+      firstName: data.firstName
+        ? await SecurityManager.encryptData(data.firstName)
+        : undefined,
+      lastName: data.lastName
+        ? await SecurityManager.encryptData(data.lastName)
+        : undefined,
+      dateOfBirth: data.dateOfBirth
+        ? await SecurityManager.encryptData(data.dateOfBirth)
+        : undefined,
+      idNumber: data.idNumber
+        ? await SecurityManager.encryptData(data.idNumber)
+        : undefined,
       issuingAuthority: data.issuingAuthority,
       expiryDate: data.expiryDate,
-      address: data.address ? await SecurityManager.encryptData(data.address) : undefined
+      address: data.address
+        ? await SecurityManager.encryptData(data.address)
+        : undefined,
     };
   }
 
-  private static async createPasswordItem(id: string, data: Partial<PasswordItem>, vaultId: string, timestamp: number): Promise<PasswordItem> {
+  private static async createPasswordItem(
+    id: string,
+    data: Partial<PasswordItem>,
+    vaultId: string,
+    timestamp: number
+  ): Promise<PasswordItem> {
     return {
       id,
       type: 'password',
@@ -360,16 +498,25 @@ export class ItemManager {
       isFavorite: data.isFavorite || false,
       notes: data.notes,
       website: data.website,
-      username: data.username ? await SecurityManager.encryptData(data.username) : undefined,
+      username: data.username
+        ? await SecurityManager.encryptData(data.username)
+        : undefined,
       password: await SecurityManager.encryptData(data.password || ''),
-      email: data.email ? await SecurityManager.encryptData(data.email) : undefined,
+      email: data.email
+        ? await SecurityManager.encryptData(data.email)
+        : undefined,
       url: data.url,
       lastPasswordChange: timestamp,
-      strength: this.calculatePasswordStrength(data.password || '')
+      strength: this.calculatePasswordStrength(data.password || ''),
     };
   }
 
-  private static async createFileItem(id: string, data: Partial<FileItem>, vaultId: string, timestamp: number): Promise<FileItem> {
+  private static async createFileItem(
+    id: string,
+    data: Partial<FileItem>,
+    vaultId: string,
+    timestamp: number
+  ): Promise<FileItem> {
     return {
       id,
       type: 'file',
@@ -381,14 +528,24 @@ export class ItemManager {
       isFavorite: data.isFavorite || false,
       notes: data.notes,
       filename: data.filename || `file_${id}`,
-      encryptedData: await SecurityManager.encryptData(data.encryptedData || 'demo_file_data'),
+      encryptedData: await SecurityManager.encryptData(
+        data.encryptedData || 'demo_file_data'
+      ),
       size: data.size || 256000,
       mimeType: data.mimeType || 'application/octet-stream',
-      hash: await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, id)
+      hash: await Crypto.digestStringAsync(
+        Crypto.CryptoDigestAlgorithm.SHA256,
+        id
+      ),
     };
   }
 
-  private static async createNoteItem(id: string, data: Partial<NoteItem>, vaultId: string, timestamp: number): Promise<NoteItem> {
+  private static async createNoteItem(
+    id: string,
+    data: Partial<NoteItem>,
+    vaultId: string,
+    timestamp: number
+  ): Promise<NoteItem> {
     return {
       id,
       type: 'note',
@@ -401,13 +558,15 @@ export class ItemManager {
       notes: data.notes,
       title: data.title || 'Untitled Note',
       content: await SecurityManager.encryptData(data.content || ''),
-      isMarkdown: data.isMarkdown || false
+      isMarkdown: data.isMarkdown || false,
     };
   }
 
   static async getItem(itemId: string): Promise<SecureItem | null> {
     try {
-      const itemData = await SecureStore.getItemAsync(this.ITEMS_PREFIX + itemId);
+      const itemData = await SecureStore.getItemAsync(
+        this.ITEMS_PREFIX + itemId
+      );
       if (!itemData) return null;
 
       const item = JSON.parse(itemData);
@@ -418,7 +577,10 @@ export class ItemManager {
     }
   }
 
-  static async updateItem(itemId: string, updates: Partial<SecureItem>): Promise<boolean> {
+  static async updateItem(
+    itemId: string,
+    updates: Partial<SecureItem>
+  ): Promise<boolean> {
     try {
       const existingItem = await this.getItem(itemId);
       if (!existingItem) return false;
@@ -426,13 +588,16 @@ export class ItemManager {
       const updatedItem = {
         ...existingItem,
         ...updates,
-        updatedAt: Date.now()
+        updatedAt: Date.now(),
       };
 
       // Re-encrypt sensitive fields
       const encryptedItem = await this.encryptItem(updatedItem);
-      
-      await SecureStore.setItemAsync(this.ITEMS_PREFIX + itemId, JSON.stringify(encryptedItem));
+
+      await SecureStore.setItemAsync(
+        this.ITEMS_PREFIX + itemId,
+        JSON.stringify(encryptedItem)
+      );
       return true;
     } catch (error) {
       console.error('Failed to update item:', error);
@@ -447,15 +612,15 @@ export class ItemManager {
 
       // Remove from vault
       await VaultManager.removeItemFromVault(item.vaultId, itemId);
-      
+
       // Delete the item
       await SecureStore.deleteItemAsync(this.ITEMS_PREFIX + itemId);
-      
-      SecurityManager.logSecurityEvent('item_deleted', { 
+
+      SecurityManager.logSecurityEvent('item_deleted', {
         vaultId: item.vaultId,
-        itemId, 
+        itemId,
         itemType: item.type,
-        itemName: item.name 
+        itemName: item.name,
       });
       return true;
     } catch (error) {
@@ -487,7 +652,10 @@ export class ItemManager {
     switch (item.type) {
       case 'card':
         const cardItem = encryptedItem as CardItem;
-        if (cardItem.cardNumber) cardItem.cardNumber = await SecurityManager.encryptData(cardItem.cardNumber);
+        if (cardItem.cardNumber)
+          cardItem.cardNumber = await SecurityManager.encryptData(
+            cardItem.cardNumber
+          );
         // Don't encrypt these for demo purposes - keep them readable
         // if (cardItem.expiryDate) cardItem.expiryDate = await SecurityManager.encryptData(cardItem.expiryDate);
         // if (cardItem.cvv) cardItem.cvv = await SecurityManager.encryptData(cardItem.cvv);
@@ -557,36 +725,28 @@ export class ItemManager {
     return decryptedItem;
   }
 
-  private static calculatePasswordStrength(password: string): 'weak' | 'medium' | 'strong' {
+  private static calculatePasswordStrength(
+    password: string
+  ): 'weak' | 'medium' | 'strong' {
     if (password.length < 8) return 'weak';
-    
+
     let score = 0;
     if (password.length >= 12) score++;
     if (/[a-z]/.test(password)) score++;
     if (/[A-Z]/.test(password)) score++;
     if (/[0-9]/.test(password)) score++;
     if (/[^A-Za-z0-9]/.test(password)) score++;
-    
+
     if (score >= 4) return 'strong';
     if (score >= 2) return 'medium';
     return 'weak';
   }
 
-  private static getDemoPhotoId(photoId: string): number {
-    let hash = 0;
-    for (let i = 0; i < photoId.length; i++) {
-      const char = photoId.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash;
-    }
-    
-    const index = Math.abs(hash) % this.DEMO_PHOTO_IDS.length;
-    return this.DEMO_PHOTO_IDS[index];
-  }
-
   private static async generateItemId(): Promise<string> {
     const randomBytes = await Crypto.getRandomBytesAsync(16);
-    return Array.from(randomBytes, byte => byte.toString(16).padStart(2, '0')).join('');
+    return Array.from(randomBytes, (byte) =>
+      byte.toString(16).padStart(2, '0')
+    ).join('');
   }
 
   private static generateDemoWaveform(): number[] {
@@ -599,34 +759,40 @@ export class ItemManager {
     return waveform;
   }
 
-  static generateImageUrl(itemId: string, size: 'small' | 'medium' | 'large' = 'medium'): string {
+  static generateImageUrl(
+    itemId: string,
+    size: 'small' | 'medium' | 'large' = 'medium'
+  ): string {
     // Generate a consistent Pexels photo URL based on item ID
     const demoPhotoId = this.getDemoPhotoId(itemId);
     const baseUrl = `https://images.pexels.com/photos/${demoPhotoId}/pexels-photo-${demoPhotoId}.jpeg?auto=compress&cs=tinysrgb`;
-    
+
     const sizeMap = {
       small: { w: 400, h: 300 },
       medium: { w: 800, h: 600 },
-      large: { w: 1200, h: 900 }
+      large: { w: 1200, h: 900 },
     };
-    
+
     const { w, h } = sizeMap[size];
     return `${baseUrl}&w=${w}&h=${h}&fit=crop`;
   }
 
-  static generateVideoUrl(itemId: string, size: 'small' | 'medium' | 'large' = 'medium'): string {
+  static generateVideoUrl(
+    itemId: string,
+    size: 'small' | 'medium' | 'large' = 'medium'
+  ): string {
     // Generate a consistent Pexels video URL based on item ID
     const demoVideoId = this.getDemoVideoId(itemId);
     const baseUrl = `https://player.vimeo.com/external/${demoVideoId}.hd.mp4?s=`;
-    
+
     // Generate a consistent hash for the video URL
     let hash = 0;
     for (let i = 0; i < itemId.length; i++) {
       const char = itemId.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
+      hash = (hash << 5) - hash + char;
       hash = hash & hash;
     }
-    
+
     const hashString = Math.abs(hash).toString(16).substring(0, 8);
     return `${baseUrl}${hashString}`;
   }
@@ -636,10 +802,10 @@ export class ItemManager {
     let hash = 0;
     for (let i = 0; i < itemId.length; i++) {
       const char = itemId.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
+      hash = (hash << 5) - hash + char;
       hash = hash & hash;
     }
-    
+
     // Use the hash to select a video from our curated list
     const index = Math.abs(hash) % this.DEMO_VIDEO_IDS.length;
     return this.DEMO_VIDEO_IDS[index];
@@ -650,10 +816,10 @@ export class ItemManager {
     let hash = 0;
     for (let i = 0; i < itemId.length; i++) {
       const char = itemId.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
+      hash = (hash << 5) - hash + char;
       hash = hash & hash; // Convert to 32-bit integer
     }
-    
+
     // Use the hash to select a photo from our curated list
     const index = Math.abs(hash) % this.DEMO_PHOTO_IDS.length;
     return this.DEMO_PHOTO_IDS[index];
@@ -663,9 +829,11 @@ export class ItemManager {
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
     const remainingSeconds = Math.floor(seconds % 60);
-    
+
     if (hours > 0) {
-      return `${hours}:${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+      return `${hours}:${minutes.toString().padStart(2, '0')}:${remainingSeconds
+        .toString()
+        .padStart(2, '0')}`;
     } else {
       return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
     }
@@ -675,39 +843,44 @@ export class ItemManager {
     try {
       const item = await this.getItem(itemId);
       if (!item || item.type !== 'photo') return null;
-      
+
       const photoItem = item as PhotoItem;
-      
+
       // Return the photo item with actual URLs
       if (photoItem.imageUrl) {
         return photoItem;
       }
-      
+
       // If we have encrypted data, try to use it
-      if (photoItem.encryptedData && photoItem.encryptedData !== 'demo_photo_data') {
+      if (
+        photoItem.encryptedData &&
+        photoItem.encryptedData !== 'demo_photo_data'
+      ) {
         let dataUrl: string;
-        
+
         if (photoItem.encryptedData.startsWith('data:')) {
           dataUrl = photoItem.encryptedData;
-        } else if (photoItem.encryptedData.startsWith('/') || 
-                   photoItem.encryptedData.startsWith('file://') || 
-                   photoItem.encryptedData.startsWith('content://') ||
-                   photoItem.encryptedData.startsWith('http')) {
+        } else if (
+          photoItem.encryptedData.startsWith('/') ||
+          photoItem.encryptedData.startsWith('file://') ||
+          photoItem.encryptedData.startsWith('content://') ||
+          photoItem.encryptedData.startsWith('http')
+        ) {
           // It's a URI, use it directly
           dataUrl = photoItem.encryptedData;
         } else {
           // Assume it's base64 data
           dataUrl = `data:image/jpeg;base64,${photoItem.encryptedData}`;
         }
-        
+
         return {
           ...photoItem,
           imageUrl: dataUrl,
           thumbnailUrl: dataUrl,
-          fullSizeUrl: dataUrl
+          fullSizeUrl: dataUrl,
         };
       }
-      
+
       return photoItem;
     } catch (error) {
       console.error('Failed to get photo item:', error);
@@ -718,11 +891,11 @@ export class ItemManager {
   static async getPhotoDisplayUrl(itemId: string): Promise<string> {
     try {
       const photoItem = await this.getActualPhotoItem(itemId);
-      
+
       if (photoItem?.imageUrl) {
         return photoItem.imageUrl;
       }
-      
+
       // Fallback to Pexels image
       return this.generateImageUrl(itemId, 'medium');
     } catch (error) {
@@ -731,12 +904,15 @@ export class ItemManager {
     }
   }
 
-  static async updatePhotoUrls(itemId: string, imageUrl: string): Promise<boolean> {
+  static async updatePhotoUrls(
+    itemId: string,
+    imageUrl: string
+  ): Promise<boolean> {
     try {
       const success = await this.updateItem(itemId, {
         imageUrl: imageUrl,
         thumbnailUrl: imageUrl,
-        fullSizeUrl: imageUrl
+        fullSizeUrl: imageUrl,
       });
       return success;
     } catch (error) {
@@ -748,7 +924,9 @@ export class ItemManager {
   static async refreshPhotoItem(itemId: string): Promise<PhotoItem | null> {
     try {
       // Get the raw item data
-      const itemData = await SecureStore.getItemAsync(this.ITEMS_PREFIX + itemId);
+      const itemData = await SecureStore.getItemAsync(
+        this.ITEMS_PREFIX + itemId
+      );
       if (!itemData) return null;
 
       const item = JSON.parse(itemData);
@@ -757,30 +935,35 @@ export class ItemManager {
       // If we have encryptedData that looks like actual photo data, use it
       if (item.encryptedData && item.encryptedData !== 'demo_photo_data') {
         let imageUrl = item.imageUrl;
-        
+
         if (!imageUrl || imageUrl === 'demo_photo_data') {
           // Try to construct URL from encrypted data
-          if (item.encryptedData.startsWith('data:') || 
-              item.encryptedData.startsWith('/') || 
-              item.encryptedData.startsWith('file://') || 
-              item.encryptedData.startsWith('content://') ||
-              item.encryptedData.startsWith('http')) {
+          if (
+            item.encryptedData.startsWith('data:') ||
+            item.encryptedData.startsWith('/') ||
+            item.encryptedData.startsWith('file://') ||
+            item.encryptedData.startsWith('content://') ||
+            item.encryptedData.startsWith('http')
+          ) {
             imageUrl = item.encryptedData;
           } else {
             // It's base64 data
             imageUrl = `data:image/jpeg;base64,${item.encryptedData}`;
           }
-          
+
           // Update the item with the correct URLs
           item.imageUrl = imageUrl;
           item.thumbnailUrl = imageUrl;
           item.fullSizeUrl = imageUrl;
-          
+
           // Save the updated item
-          await SecureStore.setItemAsync(this.ITEMS_PREFIX + itemId, JSON.stringify(item));
+          await SecureStore.setItemAsync(
+            this.ITEMS_PREFIX + itemId,
+            JSON.stringify(item)
+          );
         }
       }
-      
+
       return item;
     } catch (error) {
       console.error('Failed to refresh photo item:', error);
