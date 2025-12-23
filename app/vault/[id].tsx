@@ -1,21 +1,213 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal, TextInput, Platform, Image } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Alert,
+  Modal,
+  TextInput,
+  Platform,
+  Image,
+  ActivityIndicator,
+} from 'react-native';
 import { useState, useEffect } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowLeft, Plus, Search, MoveVertical as MoreVertical, Share, Activity, Eye, EyeOff, Star, Trash2, CreditCard as Edit3, Download, Upload, Filter, Import as SortAsc, Grid2x2 as Grid, List, Camera, FileText, CreditCard, User, Lock, File, StickyNote, Copy, ExternalLink, Calendar, MapPin, Phone, Mail, Globe, Key, Shield, CreditCard as Card, X, Video, Mic, Play, Pause, Users } from 'lucide-react-native';
-import { VaultManager, Vault } from '@/utils/VaultManager';
-import { ItemManager, SecureItem } from '@/utils/ItemManager';
+import {
+  ArrowLeft,
+  Plus,
+  Search,
+  MoveVertical as MoreVertical,
+  Share,
+  Activity,
+  Eye,
+  EyeOff,
+  Star,
+  Trash2,
+  CreditCard as Edit3,
+  Download,
+  Upload,
+  Filter,
+  Import as SortAsc,
+  Grid2x2 as Grid,
+  List,
+  Camera,
+  FileText,
+  CreditCard,
+  User,
+  Lock,
+  File,
+  StickyNote,
+  Copy,
+  ExternalLink,
+  Calendar,
+  MapPin,
+  Phone,
+  Mail,
+  Globe,
+  Key,
+  Shield,
+  CreditCard as Card,
+  X,
+  Video,
+  Mic,
+  Play,
+  Pause,
+  Users,
+} from 'lucide-react-native';
 import { SecurityManager } from '@/utils/SecurityManager';
-import { FamilyManager } from '@/utils/FamilyManager';
+import { ItemManager, SecureItem } from '@/utils/ItemManager';
 import ItemCreationModal from '@/components/ItemCreationModal';
 import VaultSharingModal from '@/components/VaultSharingModal';
 import { Audio } from 'expo-av';
+import { VideoView, useVideoPlayer } from 'expo-video';
+import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
+import { useEvent } from 'expo';
+
+import { useVault } from '@/hooks/useVaults';
+import { useVaultItems, useDeleteVaultItem } from '@/hooks/useVaultItems';
+
+const AudioPlayer = ({ url }: { url: string }) => {
+  const player = useAudioPlayer(url);
+  const status = useAudioPlayerStatus(player);
+
+  const progress = status.duration ? status.currentTime / status.duration : 0;
+
+  return (
+    <View
+      style={{
+        width: '100%',
+        backgroundColor: '#2C2C2E',
+        borderRadius: 12,
+        padding: 16,
+      }}
+    >
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          marginBottom: 12,
+        }}
+      >
+        <TouchableOpacity
+          onPress={() => {
+            if (status.playing) {
+              player.pause();
+            } else {
+              player.seekTo(0);
+              player.play();
+            }
+          }}
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: 20,
+            backgroundColor: '#9B59B6',
+            justifyContent: 'center',
+            alignItems: 'center',
+          }}
+        >
+          {status.playing ? (
+            <Pause size={20} color="#FFFFFF" />
+          ) : (
+            <Play size={20} color="#FFFFFF" />
+          )}
+        </TouchableOpacity>
+        <View style={{ flex: 1, marginLeft: 12 }}>
+          <Text style={{ color: '#FFFFFF', fontSize: 14 }}>Audio</Text>
+          <Text style={{ color: '#8E8E93', fontSize: 12 }}>
+            {Math.floor(status.currentTime || 0)}s /{' '}
+            {Math.floor(status.duration || 0)}s
+          </Text>
+        </View>
+      </View>
+      <View
+        style={{
+          height: 4,
+          backgroundColor: '#48484A',
+          borderRadius: 2,
+          overflow: 'hidden',
+        }}
+      >
+        <View
+          style={{
+            height: '100%',
+            width: `${progress * 100}%`,
+            backgroundColor: '#9B59B6',
+          }}
+        />
+      </View>
+    </View>
+  );
+};
+
+const VideoPlayer = ({ url }: { url: string }) => {
+  const player = useVideoPlayer(url, (player) => {
+    player.loop = false;
+    player.muted = false;
+  });
+
+  const { status } = useEvent(player, 'statusChange', {
+    status: player.status,
+  });
+
+  const isLoading = status !== 'readyToPlay';
+
+  return (
+    <View
+      style={{
+        width: '100%',
+        height: 200,
+        borderRadius: 12,
+        backgroundColor: '#e71919ff',
+        position: 'relative',
+      }}
+    >
+      {isLoading && (
+        <View
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            justifyContent: 'center',
+            alignItems: 'center',
+            backgroundColor: '#1C1C1E',
+            borderRadius: 12,
+            zIndex: 1,
+          }}
+        >
+          <ActivityIndicator size="large" color="#007AFF" />
+          <Text
+            style={{
+              color: '#8E8E93',
+              marginTop: 8,
+              fontSize: 14,
+            }}
+          >
+            Loading video...
+          </Text>
+        </View>
+      )}
+      <VideoView
+        style={{
+          width: '100%',
+          height: 200,
+          borderRadius: 12,
+          backgroundColor: '#0c0c0cff',
+        }}
+        player={player}
+        allowsFullscreen
+        allowsPictureInPicture
+      />
+    </View>
+  );
+};
 
 export default function VaultDetailScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
-  const [vault, setVault] = useState<Vault | null>(null);
-  const [items, setItems] = useState<SecureItem[]>([]);
-  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [showItemModal, setShowItemModal] = useState(false);
   const [selectedItem, setSelectedItem] = useState<SecureItem | null>(null);
@@ -30,106 +222,36 @@ export default function VaultDetailScreen() {
   const [activityLog, setActivityLog] = useState<any[]>([]);
   const [loadingActivity, setLoadingActivity] = useState(false);
   const [showSharingModal, setShowSharingModal] = useState(false);
-  const [hasFamilyGroup, setHasFamilyGroup] = useState(false);
 
-  const [photoUrls, setPhotoUrls] = useState<{[key: string]: string}>({});
-  const [showPassword, setShowPassword] = useState<{[key: string]: boolean}>({});
-  const [showSensitiveData, setShowSensitiveData] = useState<{[key: string]: boolean}>({});
+  const [photoUrls, setPhotoUrls] = useState<{ [key: string]: string }>({});
+  const [showPassword, setShowPassword] = useState<{ [key: string]: boolean }>(
+    {}
+  );
+  const [showSensitiveData, setShowSensitiveData] = useState<{
+    [key: string]: boolean;
+  }>({});
 
   // Audio playback state
   const [playingAudio, setPlayingAudio] = useState<string | null>(null);
   const [audioSound, setAudioSound] = useState<Audio.Sound | null>(null);
 
-  useEffect(() => {
-    if (id) {
-      loadVaultData();
-      loadActivityLog();
-      checkFamilyGroup();
-    }
-  }, [id]);
+  // TanStack Query hooks
+  const { data: vault, isLoading, error } = useVault(id as string);
+  const { data: items = [], isLoading: itemsLoading } = useVaultItems(
+    id as string
+  );
+  const { mutateAsync: deleteItem, isPending: isDeleting } =
+    useDeleteVaultItem();
 
-  useEffect(() => {
-    // Load photo URLs for photo items
-    const loadPhotoUrls = async () => {
-      const urls: {[key: string]: string} = {};
-      
-      for (const item of items) {
-        if (item.type === 'photo') {
-          try {
-            // Get the display URL for this photo
-            const displayUrl = await ItemManager.getPhotoDisplayUrl(item.id);
-            urls[item.id] = displayUrl;
-          } catch (error) {
-            console.error('Failed to load photo URL for item:', item.id, error);
-            // Fallback to Pexels placeholder
-            const placeholderUrl = ItemManager.generateImageUrl(item.id, 'medium');
-            urls[item.id] = placeholderUrl;
-          }
-        }
-      }
-      
-      setPhotoUrls(urls);
-    };
-
-    if (items.length > 0) {
-      loadPhotoUrls();
-    }
-  }, [items]);
-
-  const loadVaultData = async () => {
-    try {
-      setLoading(true);
-      const vaultData = await VaultManager.getVault(id as string);
-      if (!vaultData) {
-        Alert.alert('Error', 'Vault not found');
-        router.back();
-        return;
-      }
-
-      setVault(vaultData);
-      
-      if (!vaultData.isLocked) {
-        const vaultItems = await VaultManager.getVaultItems(id as string);
-        setItems(vaultItems);
-        
-        // Update last accessed time
-        await VaultManager.updateVault(id as string, { lastAccessed: Date.now() });
-      }
-    } catch (error) {
-      console.error('Failed to load vault data:', error);
-      Alert.alert('Error', 'Failed to load vault data');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadActivityLog = async () => {
-    try {
-      setLoadingActivity(true);
-      const events = await SecurityManager.getVaultActivity(id as string);
-      setActivityLog(events);
-    } catch (error) {
-      console.error('Failed to load activity log:', error);
-    } finally {
-      setLoadingActivity(false);
-    }
-  };
-
-  const checkFamilyGroup = async () => {
-    try {
-      const familyGroup = await FamilyManager.getFamilyGroup();
-      setHasFamilyGroup(!!familyGroup);
-    } catch (error) {
-      console.error('Failed to check family group:', error);
-    }
+  const handleItemCreated = () => {
+    // Items will auto-refresh via TanStack Query
   };
 
   const handleUnlockVault = async () => {
     if (!vault) return;
 
     try {
-      await VaultManager.unlockVault(vault.id);
-      await loadVaultData();
+      // TODO: Implement unlock logic
       SecurityManager.logSecurityEvent('vault_unlocked', { vaultId: vault.id });
     } catch (error) {
       Alert.alert('Error', 'Failed to unlock vault');
@@ -139,30 +261,22 @@ export default function VaultDetailScreen() {
   const handleLockVault = async () => {
     if (!vault) return;
 
-    Alert.alert(
-      'Lock Vault',
-      'Are you sure you want to lock this vault?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Lock',
-          onPress: async () => {
-            try {
-              await VaultManager.lockVault(vault.id);
-              setItems([]);
-              await loadVaultData();
-              SecurityManager.logSecurityEvent('vault_locked', { vaultId: vault.id });
-            } catch (error) {
-              Alert.alert('Error', 'Failed to lock vault');
-            }
+    Alert.alert('Lock Vault', 'Are you sure you want to lock this vault?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Lock',
+        onPress: async () => {
+          try {
+            // TODO: Implement lock logic
+            SecurityManager.logSecurityEvent('vault_locked', {
+              vaultId: vault.id,
+            });
+          } catch (error) {
+            Alert.alert('Error', 'Failed to lock vault');
           }
-        }
-      ]
-    );
-  };
-
-  const handleItemCreated = () => {
-    loadVaultData();
+        },
+      },
+    ]);
   };
 
   const handleItemPress = (item: SecureItem) => {
@@ -181,14 +295,13 @@ export default function VaultDetailScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              await ItemManager.deleteItem(item.id);
-              await loadVaultData();
+              await deleteItem(item.id);
               setShowItemDetails(false);
             } catch (error) {
               Alert.alert('Error', 'Failed to delete item');
             }
-          }
-        }
+          },
+        },
       ]
     );
   };
@@ -226,11 +339,11 @@ export default function VaultDetailScreen() {
         vault: vault,
         items: items,
         exportedAt: new Date().toISOString(),
-        exportedBy: 'Secure Vault App'
+        exportedBy: 'Secure Vault App',
       };
 
       const exportJson = JSON.stringify(vaultData, null, 2);
-      
+
       if (Platform.OS === 'web') {
         // Create and download file on web
         const blob = new Blob([exportJson], { type: 'application/json' });
@@ -242,14 +355,19 @@ export default function VaultDetailScreen() {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-        
+
         Alert.alert('Success', 'Vault exported successfully');
       } else {
         // For native platforms, you would use expo-sharing or similar
-        Alert.alert('Export Complete', 'Vault data has been prepared for export');
+        Alert.alert(
+          'Export Complete',
+          'Vault data has been prepared for export'
+        );
       }
-      
-      SecurityManager.logSecurityEvent('vault_exported', { vaultId: vault?.id });
+
+      SecurityManager.logSecurityEvent('vault_exported', {
+        vaultId: vault?.id,
+      });
     } catch (error) {
       console.error('Export failed:', error);
       Alert.alert('Error', 'Failed to export vault');
@@ -259,13 +377,15 @@ export default function VaultDetailScreen() {
   const handleShareLink = async () => {
     try {
       // Generate a secure sharing link (in production, this would be a real URL)
-      const shareLink = `https://securevault.app/shared/${vault?.id}?token=${Date.now()}`;
-      
+      const shareLink = `https://securevault.app/shared/${
+        vault?.id
+      }?token=${Date.now()}`;
+
       if (Platform.OS === 'web' && navigator.share) {
         await navigator.share({
           title: `Secure Vault: ${vault?.name}`,
           text: `Check out my secure vault: ${vault?.name}`,
-          url: shareLink
+          url: shareLink,
         });
       } else if (Platform.OS === 'web') {
         // Fallback for web browsers without Web Share API
@@ -275,8 +395,10 @@ export default function VaultDetailScreen() {
         // For native platforms, you would use expo-sharing
         Alert.alert('Share Link', `Link: ${shareLink}`);
       }
-      
-      SecurityManager.logSecurityEvent('vault_link_shared', { vaultId: vault?.id });
+
+      SecurityManager.logSecurityEvent('vault_link_shared', {
+        vaultId: vault?.id,
+      });
     } catch (error) {
       console.error('Share link failed:', error);
       Alert.alert('Error', 'Failed to create sharing link');
@@ -290,18 +412,18 @@ export default function VaultDetailScreen() {
         type: 'vault_share',
         vaultId: vault?.id,
         vaultName: vault?.name,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
-      
+
       Alert.alert(
-        'QR Code Generated', 
+        'QR Code Generated',
         'QR code has been generated for sharing. In a production app, this would display a scannable QR code.',
-        [
-          { text: 'OK' }
-        ]
+        [{ text: 'OK' }]
       );
-      
-      SecurityManager.logSecurityEvent('vault_qr_shared', { vaultId: vault?.id });
+
+      SecurityManager.logSecurityEvent('vault_qr_shared', {
+        vaultId: vault?.id,
+      });
     } catch (error) {
       console.error('QR share failed:', error);
       Alert.alert('Error', 'Failed to generate QR code');
@@ -311,12 +433,12 @@ export default function VaultDetailScreen() {
   const formatActivityTime = (timestamp: number) => {
     const now = Date.now();
     const diff = now - timestamp;
-    
+
     if (diff < 60000) return 'Just now';
     if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
     if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
     if (diff < 604800000) return `${Math.floor(diff / 86400000)}d ago`;
-    
+
     return new Date(timestamp).toLocaleDateString();
   };
 
@@ -352,9 +474,13 @@ export default function VaultDetailScreen() {
       case 'vault_unlocked':
         return 'Vault was unlocked';
       case 'item_added':
-        return `Added ${details?.itemType || 'item'}: ${details?.itemName || 'Unknown'}`;
+        return `Added ${details?.itemType || 'item'}: ${
+          details?.itemName || 'Unknown'
+        }`;
       case 'item_deleted':
-        return `Deleted ${details?.itemType || 'item'}: ${details?.itemName || 'Unknown'}`;
+        return `Deleted ${details?.itemType || 'item'}: ${
+          details?.itemName || 'Unknown'
+        }`;
       case 'vault_exported':
         return 'Vault data was exported';
       case 'vault_link_shared':
@@ -367,23 +493,23 @@ export default function VaultDetailScreen() {
   };
 
   const togglePasswordVisibility = (itemId: string) => {
-    setShowPassword(prev => ({
+    setShowPassword((prev) => ({
       ...prev,
-      [itemId]: !prev[itemId]
+      [itemId]: !prev[itemId],
     }));
   };
 
   const toggleSensitiveDataVisibility = (itemId: string) => {
-    setShowSensitiveData(prev => ({
+    setShowSensitiveData((prev) => ({
       ...prev,
-      [itemId]: !prev[itemId]
+      [itemId]: !prev[itemId],
     }));
   };
 
   const getItemIcon = (type: string) => {
     // Add null check for type
     if (!type) return <File size={20} color="#8E8E93" />;
-    
+
     switch (type) {
       case 'photo':
         return <Camera size={20} color="#007AFF" />;
@@ -411,7 +537,7 @@ export default function VaultDetailScreen() {
   const getItemTypeLabel = (type: string) => {
     // Add null check for type
     if (!type) return 'Unknown';
-    
+
     return type.charAt(0).toUpperCase() + type.slice(1);
   };
 
@@ -437,7 +563,10 @@ export default function VaultDetailScreen() {
 
   const playAudio = async (audioItem: any) => {
     if (Platform.OS === 'web') {
-      Alert.alert('Audio playback not available', 'Audio playback is not available on web platform');
+      Alert.alert(
+        'Audio playback not available',
+        'Audio playback is not available on web platform'
+      );
       return;
     }
 
@@ -483,8 +612,10 @@ export default function VaultDetailScreen() {
   };
 
   const filteredAndSortedItems = items
-    .filter(item => {
-      const matchesSearch = (item.name || '').toLowerCase().includes(searchQuery.toLowerCase());
+    .filter((item) => {
+      const matchesSearch = (item.name || '')
+        .toLowerCase()
+        .includes(searchQuery.toLowerCase());
       const matchesFilter = !filterType || item.type === filterType;
       return matchesSearch && matchesFilter;
     })
@@ -507,9 +638,13 @@ export default function VaultDetailScreen() {
         return (
           <View style={styles.itemPreview}>
             <Text style={styles.previewLabel}>Website</Text>
-            <Text style={styles.previewValue}>{passwordItem.website || 'No website'}</Text>
+            <Text style={styles.previewValue}>
+              {passwordItem.website || 'No website'}
+            </Text>
             <Text style={styles.previewLabel}>Username</Text>
-            <Text style={styles.previewValue}>{passwordItem.username || 'No username'}</Text>
+            <Text style={styles.previewValue}>
+              {passwordItem.username || 'No username'}
+            </Text>
           </View>
         );
       case 'card':
@@ -517,9 +652,13 @@ export default function VaultDetailScreen() {
         return (
           <View style={styles.itemPreview}>
             <Text style={styles.previewLabel}>Card Type</Text>
-            <Text style={styles.previewValue}>{cardItem.cardType || 'Unknown'}</Text>
+            <Text style={styles.previewValue}>
+              {cardItem.cardType || 'Unknown'}
+            </Text>
             <Text style={styles.previewLabel}>Last 4 digits</Text>
-            <Text style={styles.previewValue}>****{cardItem.cardNumber?.slice(-4) || '****'}</Text>
+            <Text style={styles.previewValue}>
+              ****{cardItem.cardNumber?.slice(-4) || '****'}
+            </Text>
           </View>
         );
       case 'identity':
@@ -527,14 +666,22 @@ export default function VaultDetailScreen() {
         return (
           <View style={styles.itemPreview}>
             <Text style={styles.previewLabel}>Type</Text>
-            <Text style={styles.previewValue}>{identityItem.identityType || 'Unknown'}</Text>
+            <Text style={styles.previewValue}>
+              {identityItem.identityType || 'Unknown'}
+            </Text>
             <Text style={styles.previewLabel}>Name</Text>
-            <Text style={styles.previewValue}>{`${identityItem.firstName || ''} ${identityItem.lastName || ''}`.trim() || 'No name'}</Text>
+            <Text style={styles.previewValue}>
+              {`${identityItem.firstName || ''} ${
+                identityItem.lastName || ''
+              }`.trim() || 'No name'}
+            </Text>
           </View>
         );
       default:
         return (
-          <Text style={styles.previewValue}>{item.notes || 'No additional details'}</Text>
+          <Text style={styles.previewValue}>
+            {item.notes || 'No additional details'}
+          </Text>
         );
     }
   };
@@ -547,29 +694,27 @@ export default function VaultDetailScreen() {
     >
       {item.type === 'photo' && (
         <Image
-          source={{ uri: photoUrls[item.id] || ItemManager.generateImageUrl(item.id, 'medium') }}
+          source={{
+            uri:
+              (item as any).file_url ||
+              (item as any).imageUrl ||
+              photoUrls[item.id] ||
+              ItemManager.generateImageUrl(item.id, 'medium'),
+          }}
           style={styles.photoThumbnail}
           onError={(error) => {
             console.log('Image load error for', item.id, error);
-            // Try to refresh the photo item and get updated URL
-            ItemManager.refreshPhotoItem(item.id).then(refreshedItem => {
-              if (refreshedItem?.imageUrl) {
-                setPhotoUrls(prev => ({ ...prev, [item.id]: refreshedItem.imageUrl! }));
-              } else {
-                // Final fallback to Pexels
-                const fallbackUrl = ItemManager.generateImageUrl(item.id, 'medium');
-                setPhotoUrls(prev => ({ ...prev, [item.id]: fallbackUrl }));
-              }
-            });
+            const fallbackUrl = ItemManager.generateImageUrl(item.id, 'medium');
+            setPhotoUrls((prev) => ({ ...prev, [item.id]: fallbackUrl }));
           }}
         />
       )}
       {item.type !== 'photo' && (
-        <View style={styles.itemIconContainer}>
-          {getItemIcon(item.type)}
-        </View>
+        <View style={styles.itemIconContainer}>{getItemIcon(item.type)}</View>
       )}
-      <Text style={styles.itemName} numberOfLines={2}>{item.name}</Text>
+      <Text style={styles.itemName} numberOfLines={2}>
+        {item.name}
+      </Text>
       <Text style={styles.itemType}>{getItemTypeLabel(item.type)}</Text>
       {renderItemPreview(item)}
     </TouchableOpacity>
@@ -581,9 +726,7 @@ export default function VaultDetailScreen() {
       style={styles.listItem}
       onPress={() => handleItemPress(item)}
     >
-      <View style={styles.listItemIcon}>
-        {getItemIcon(item.type)}
-      </View>
+      <View style={styles.listItemIcon}>{getItemIcon(item.type)}</View>
       <View style={styles.listItemInfo}>
         <Text style={styles.listItemName}>{item.name}</Text>
         <Text style={styles.listItemType}>{getItemTypeLabel(item.type)}</Text>
@@ -609,35 +752,49 @@ export default function VaultDetailScreen() {
           <ScrollView style={styles.itemDetailsScroll}>
             <View style={styles.detailSection}>
               <Text style={styles.detailSectionTitle}>Login Information</Text>
-              
+
               {passwordItem.website && (
                 <View style={styles.detailRow}>
                   <Globe size={16} color="#007AFF" />
                   <View style={styles.detailContent}>
                     <Text style={styles.detailLabel}>Website</Text>
-                    <TouchableOpacity onPress={() => openUrl(passwordItem.website)}>
-                      <Text style={[styles.detailValue, styles.linkText]}>{passwordItem.website}</Text>
+                    <TouchableOpacity
+                      onPress={() => openUrl(passwordItem.website)}
+                    >
+                      <Text style={[styles.detailValue, styles.linkText]}>
+                        {passwordItem.website}
+                      </Text>
                     </TouchableOpacity>
                   </View>
-                  <TouchableOpacity onPress={() => copyToClipboard(passwordItem.website, 'Website')}>
+                  <TouchableOpacity
+                    onPress={() =>
+                      copyToClipboard(passwordItem.website, 'Website')
+                    }
+                  >
                     <Copy size={16} color="#8E8E93" />
                   </TouchableOpacity>
                 </View>
               )}
-              
+
               {passwordItem.username && (
                 <View style={styles.detailRow}>
                   <User size={16} color="#34C759" />
                   <View style={styles.detailContent}>
                     <Text style={styles.detailLabel}>Username</Text>
-                    <Text style={styles.detailValue}>{passwordItem.username}</Text>
+                    <Text style={styles.detailValue}>
+                      {passwordItem.username}
+                    </Text>
                   </View>
-                  <TouchableOpacity onPress={() => copyToClipboard(passwordItem.username, 'Username')}>
+                  <TouchableOpacity
+                    onPress={() =>
+                      copyToClipboard(passwordItem.username, 'Username')
+                    }
+                  >
                     <Copy size={16} color="#8E8E93" />
                   </TouchableOpacity>
                 </View>
               )}
-              
+
               <View style={styles.detailRow}>
                 <Key size={16} color="#FF9500" />
                 <View style={styles.detailContent}>
@@ -646,18 +803,24 @@ export default function VaultDetailScreen() {
                     {showPassword[item.id] ? passwordItem.password : '••••••••'}
                   </Text>
                 </View>
-                <TouchableOpacity onPress={() => togglePasswordVisibility(item.id)}>
+                <TouchableOpacity
+                  onPress={() => togglePasswordVisibility(item.id)}
+                >
                   {showPassword[item.id] ? (
                     <EyeOff size={16} color="#8E8E93" />
                   ) : (
                     <Eye size={16} color="#8E8E93" />
                   )}
                 </TouchableOpacity>
-                <TouchableOpacity onPress={() => copyToClipboard(passwordItem.password, 'Password')}>
+                <TouchableOpacity
+                  onPress={() =>
+                    copyToClipboard(passwordItem.password, 'Password')
+                  }
+                >
                   <Copy size={16} color="#8E8E93" />
                 </TouchableOpacity>
               </View>
-              
+
               {passwordItem.email && (
                 <View style={styles.detailRow}>
                   <Mail size={16} color="#AF52DE" />
@@ -665,7 +828,9 @@ export default function VaultDetailScreen() {
                     <Text style={styles.detailLabel}>Email</Text>
                     <Text style={styles.detailValue}>{passwordItem.email}</Text>
                   </View>
-                  <TouchableOpacity onPress={() => copyToClipboard(passwordItem.email, 'Email')}>
+                  <TouchableOpacity
+                    onPress={() => copyToClipboard(passwordItem.email, 'Email')}
+                  >
                     <Copy size={16} color="#8E8E93" />
                   </TouchableOpacity>
                 </View>
@@ -673,60 +838,85 @@ export default function VaultDetailScreen() {
             </View>
           </ScrollView>
         );
-        
+
       case 'card':
         const cardItem = item as any;
         return (
           <ScrollView style={styles.itemDetailsScroll}>
             <View style={styles.detailSection}>
               <Text style={styles.detailSectionTitle}>Card Information</Text>
-              
+
               <View style={styles.detailRow}>
                 <Card size={16} color="#007AFF" />
                 <View style={styles.detailContent}>
                   <Text style={styles.detailLabel}>Card Number</Text>
                   <Text style={styles.detailValue}>
-                    {showSensitiveData[item.id] ? cardItem.cardNumber : `****-****-****-${cardItem.cardNumber?.slice(-4) || '****'}`}
+                    {showSensitiveData[item.id]
+                      ? cardItem.cardNumber
+                      : `****-****-****-${
+                          cardItem.cardNumber?.slice(-4) || '****'
+                        }`}
                   </Text>
                 </View>
-                <TouchableOpacity onPress={() => toggleSensitiveDataVisibility(item.id)}>
+                <TouchableOpacity
+                  onPress={() => toggleSensitiveDataVisibility(item.id)}
+                >
                   {showSensitiveData[item.id] ? (
                     <EyeOff size={16} color="#8E8E93" />
                   ) : (
                     <Eye size={16} color="#8E8E93" />
                   )}
                 </TouchableOpacity>
-                <TouchableOpacity onPress={() => copyToClipboard(cardItem.cardNumber, 'Card Number')}>
+                <TouchableOpacity
+                  onPress={() =>
+                    copyToClipboard(cardItem.cardNumber, 'Card Number')
+                  }
+                >
                   <Copy size={16} color="#8E8E93" />
                 </TouchableOpacity>
               </View>
-              
+
               {cardItem.cardholderName && (
                 <View style={styles.detailRow}>
                   <User size={16} color="#34C759" />
                   <View style={styles.detailContent}>
                     <Text style={styles.detailLabel}>Cardholder Name</Text>
-                    <Text style={styles.detailValue}>{cardItem.cardholderName}</Text>
+                    <Text style={styles.detailValue}>
+                      {cardItem.cardholderName}
+                    </Text>
                   </View>
-                  <TouchableOpacity onPress={() => copyToClipboard(cardItem.cardholderName, 'Cardholder Name')}>
+                  <TouchableOpacity
+                    onPress={() =>
+                      copyToClipboard(
+                        cardItem.cardholderName,
+                        'Cardholder Name'
+                      )
+                    }
+                  >
                     <Copy size={16} color="#8E8E93" />
                   </TouchableOpacity>
                 </View>
               )}
-              
+
               {cardItem.expiryDate && (
                 <View style={styles.detailRow}>
                   <Calendar size={16} color="#FF9500" />
                   <View style={styles.detailContent}>
                     <Text style={styles.detailLabel}>Expiry Date</Text>
-                    <Text style={styles.detailValue}>{cardItem.expiryDate}</Text>
+                    <Text style={styles.detailValue}>
+                      {cardItem.expiryDate}
+                    </Text>
                   </View>
-                  <TouchableOpacity onPress={() => copyToClipboard(cardItem.expiryDate, 'Expiry Date')}>
+                  <TouchableOpacity
+                    onPress={() =>
+                      copyToClipboard(cardItem.expiryDate, 'Expiry Date')
+                    }
+                  >
                     <Copy size={16} color="#8E8E93" />
                   </TouchableOpacity>
                 </View>
               )}
-              
+
               {cardItem.cvv && (
                 <View style={styles.detailRow}>
                   <Shield size={16} color="#FF3B30" />
@@ -736,7 +926,9 @@ export default function VaultDetailScreen() {
                       {showSensitiveData[item.id] ? cardItem.cvv : '•••'}
                     </Text>
                   </View>
-                  <TouchableOpacity onPress={() => copyToClipboard(cardItem.cvv, 'CVV')}>
+                  <TouchableOpacity
+                    onPress={() => copyToClipboard(cardItem.cvv, 'CVV')}
+                  >
                     <Copy size={16} color="#8E8E93" />
                   </TouchableOpacity>
                 </View>
@@ -744,72 +936,105 @@ export default function VaultDetailScreen() {
             </View>
           </ScrollView>
         );
-        
+
       case 'identity':
         const identityItem = item as any;
         return (
           <ScrollView style={styles.itemDetailsScroll}>
             <View style={styles.detailSection}>
-              <Text style={styles.detailSectionTitle}>Identity Information</Text>
-              
+              <Text style={styles.detailSectionTitle}>
+                Identity Information
+              </Text>
+
               {(identityItem.firstName || identityItem.lastName) && (
                 <View style={styles.detailRow}>
                   <User size={16} color="#007AFF" />
                   <View style={styles.detailContent}>
                     <Text style={styles.detailLabel}>Full Name</Text>
                     <Text style={styles.detailValue}>
-                      {`${identityItem.firstName || ''} ${identityItem.lastName || ''}`.trim()}
+                      {`${identityItem.firstName || ''} ${
+                        identityItem.lastName || ''
+                      }`.trim()}
                     </Text>
                   </View>
-                  <TouchableOpacity onPress={() => copyToClipboard(`${identityItem.firstName || ''} ${identityItem.lastName || ''}`.trim(), 'Full Name')}>
+                  <TouchableOpacity
+                    onPress={() =>
+                      copyToClipboard(
+                        `${identityItem.firstName || ''} ${
+                          identityItem.lastName || ''
+                        }`.trim(),
+                        'Full Name'
+                      )
+                    }
+                  >
                     <Copy size={16} color="#8E8E93" />
                   </TouchableOpacity>
                 </View>
               )}
-              
+
               {identityItem.idNumber && (
                 <View style={styles.detailRow}>
                   <CreditCard size={16} color="#34C759" />
                   <View style={styles.detailContent}>
                     <Text style={styles.detailLabel}>ID Number</Text>
                     <Text style={styles.detailValue}>
-                      {showSensitiveData[item.id] ? identityItem.idNumber : `****${identityItem.idNumber?.slice(-4) || '****'}`}
+                      {showSensitiveData[item.id]
+                        ? identityItem.idNumber
+                        : `****${identityItem.idNumber?.slice(-4) || '****'}`}
                     </Text>
                   </View>
-                  <TouchableOpacity onPress={() => toggleSensitiveDataVisibility(item.id)}>
+                  <TouchableOpacity
+                    onPress={() => toggleSensitiveDataVisibility(item.id)}
+                  >
                     {showSensitiveData[item.id] ? (
                       <EyeOff size={16} color="#8E8E93" />
                     ) : (
                       <Eye size={16} color="#8E8E93" />
                     )}
                   </TouchableOpacity>
-                  <TouchableOpacity onPress={() => copyToClipboard(identityItem.idNumber, 'ID Number')}>
+                  <TouchableOpacity
+                    onPress={() =>
+                      copyToClipboard(identityItem.idNumber, 'ID Number')
+                    }
+                  >
                     <Copy size={16} color="#8E8E93" />
                   </TouchableOpacity>
                 </View>
               )}
-              
+
               {identityItem.dateOfBirth && (
                 <View style={styles.detailRow}>
                   <Calendar size={16} color="#FF9500" />
                   <View style={styles.detailContent}>
                     <Text style={styles.detailLabel}>Date of Birth</Text>
-                    <Text style={styles.detailValue}>{identityItem.dateOfBirth}</Text>
+                    <Text style={styles.detailValue}>
+                      {identityItem.dateOfBirth}
+                    </Text>
                   </View>
-                  <TouchableOpacity onPress={() => copyToClipboard(identityItem.dateOfBirth, 'Date of Birth')}>
+                  <TouchableOpacity
+                    onPress={() =>
+                      copyToClipboard(identityItem.dateOfBirth, 'Date of Birth')
+                    }
+                  >
                     <Copy size={16} color="#8E8E93" />
                   </TouchableOpacity>
                 </View>
               )}
-              
+
               {identityItem.address && (
                 <View style={styles.detailRow}>
                   <MapPin size={16} color="#AF52DE" />
                   <View style={styles.detailContent}>
                     <Text style={styles.detailLabel}>Address</Text>
-                    <Text style={styles.detailValue}>{identityItem.address}</Text>
+                    <Text style={styles.detailValue}>
+                      {identityItem.address}
+                    </Text>
                   </View>
-                  <TouchableOpacity onPress={() => copyToClipboard(identityItem.address, 'Address')}>
+                  <TouchableOpacity
+                    onPress={() =>
+                      copyToClipboard(identityItem.address, 'Address')
+                    }
+                  >
                     <Copy size={16} color="#8E8E93" />
                   </TouchableOpacity>
                 </View>
@@ -817,7 +1042,7 @@ export default function VaultDetailScreen() {
             </View>
           </ScrollView>
         );
-        
+
       case 'note':
         const noteItem = item as any;
         return (
@@ -825,11 +1050,15 @@ export default function VaultDetailScreen() {
             <View style={styles.detailSection}>
               <Text style={styles.detailSectionTitle}>Note Content</Text>
               <View style={styles.noteContent}>
-                <Text style={styles.noteText}>{noteItem.content || 'No content'}</Text>
+                <Text style={styles.noteText}>
+                  {noteItem.content || 'No content'}
+                </Text>
               </View>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.copyButton}
-                onPress={() => copyToClipboard(noteItem.content, 'Note content')}
+                onPress={() =>
+                  copyToClipboard(noteItem.content, 'Note content')
+                }
               >
                 <Copy size={16} color="#007AFF" />
                 <Text style={styles.copyButtonText}>Copy Note</Text>
@@ -837,7 +1066,29 @@ export default function VaultDetailScreen() {
             </View>
           </ScrollView>
         );
-        
+
+      case 'video':
+        const videoItem = item as any;
+        return (
+          <ScrollView style={styles.itemDetailsScroll}>
+            <View style={styles.detailSection}>
+              <Text style={styles.detailSectionTitle}>Video</Text>
+              {videoItem.file_url && <VideoPlayer url={videoItem.file_url} />}
+            </View>
+          </ScrollView>
+        );
+
+      case 'audio':
+        const audioItem = item as any;
+        return (
+          <ScrollView style={styles.itemDetailsScroll}>
+            <View style={styles.detailSection}>
+              <Text style={styles.detailSectionTitle}>Audio</Text>
+              {audioItem.file_url && <AudioPlayer url={audioItem.file_url} />}
+            </View>
+          </ScrollView>
+        );
+
       case 'document':
       case 'file':
         const fileItem = item as any;
@@ -845,26 +1096,32 @@ export default function VaultDetailScreen() {
           <ScrollView style={styles.itemDetailsScroll}>
             <View style={styles.detailSection}>
               <Text style={styles.detailSectionTitle}>File Information</Text>
-              
+
               <View style={styles.detailRow}>
                 <File size={16} color="#007AFF" />
                 <View style={styles.detailContent}>
                   <Text style={styles.detailLabel}>Filename</Text>
-                  <Text style={styles.detailValue}>{fileItem.filename || 'Unknown'}</Text>
+                  <Text style={styles.detailValue}>
+                    {fileItem.filename || 'Unknown'}
+                  </Text>
                 </View>
-                <TouchableOpacity onPress={() => copyToClipboard(fileItem.filename, 'Filename')}>
+                <TouchableOpacity
+                  onPress={() => copyToClipboard(fileItem.filename, 'Filename')}
+                >
                   <Copy size={16} color="#8E8E93" />
                 </TouchableOpacity>
               </View>
-              
+
               <View style={styles.detailRow}>
                 <FileText size={16} color="#34C759" />
                 <View style={styles.detailContent}>
                   <Text style={styles.detailLabel}>File Size</Text>
-                  <Text style={styles.detailValue}>{formatFileSize(fileItem.size || 0)}</Text>
+                  <Text style={styles.detailValue}>
+                    {formatFileSize(fileItem.size || 0)}
+                  </Text>
                 </View>
               </View>
-              
+
               {fileItem.mimeType && (
                 <View style={styles.detailRow}>
                   <FileText size={16} color="#FF9500" />
@@ -874,7 +1131,7 @@ export default function VaultDetailScreen() {
                   </View>
                 </View>
               )}
-              
+
               <TouchableOpacity style={styles.downloadButton}>
                 <Download size={16} color="#007AFF" />
                 <Text style={styles.downloadButtonText}>Download File</Text>
@@ -882,7 +1139,7 @@ export default function VaultDetailScreen() {
             </View>
           </ScrollView>
         );
-        
+
       default:
         return (
           <View style={styles.itemDetailsContent}>
@@ -911,7 +1168,7 @@ export default function VaultDetailScreen() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  if (loading) {
+  if (isLoading || itemsLoading) {
     return (
       <View style={styles.loadingContainer}>
         <Text style={styles.loadingText}>Loading vault...</Text>
@@ -919,11 +1176,14 @@ export default function VaultDetailScreen() {
     );
   }
 
-  if (!vault) {
+  if (error || !vault) {
     return (
       <View style={styles.errorContainer}>
         <Text style={styles.errorText}>Vault not found</Text>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => router.back()}
+        >
           <Text style={styles.backButtonText}>Go Back</Text>
         </TouchableOpacity>
       </View>
@@ -934,7 +1194,10 @@ export default function VaultDetailScreen() {
     return (
       <View style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity style={styles.headerButton} onPress={() => router.back()}>
+          <TouchableOpacity
+            style={styles.headerButton}
+            onPress={() => router.back()}
+          >
             <ArrowLeft size={24} color="#FFFFFF" />
           </TouchableOpacity>
           <Text style={styles.title}>{vault.name}</Text>
@@ -949,7 +1212,10 @@ export default function VaultDetailScreen() {
           <Text style={styles.lockedSubtitle}>
             This vault is locked. Unlock it to view your secure items.
           </Text>
-          <TouchableOpacity style={styles.unlockButton} onPress={handleUnlockVault}>
+          <TouchableOpacity
+            style={styles.unlockButton}
+            onPress={handleUnlockVault}
+          >
             <Eye size={20} color="#FFFFFF" />
             <Text style={styles.unlockButtonText}>Unlock Vault</Text>
           </TouchableOpacity>
@@ -961,7 +1227,10 @@ export default function VaultDetailScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity style={styles.headerButton} onPress={() => router.back()}>
+        <TouchableOpacity
+          style={styles.headerButton}
+          onPress={() => router.back()}
+        >
           <ArrowLeft size={24} color="#FFFFFF" />
         </TouchableOpacity>
         <Text style={styles.title}>{vault.name}</Text>
@@ -971,17 +1240,23 @@ export default function VaultDetailScreen() {
       </View>
 
       <View style={styles.vaultInfo}>
-        <View style={[styles.vaultColorBar, { backgroundColor: vault.color }]} />
+        <View
+          style={[styles.vaultColorBar, { backgroundColor: vault.color }]}
+        />
         <View style={styles.vaultDetails}>
           <Text style={styles.vaultDescription}>{vault.description}</Text>
           <Text style={styles.vaultStats}>
-            {items.length} items • Last accessed {new Date(vault.lastAccessed).toLocaleDateString()}
+            {items.length} items • Last accessed{' '}
+            {new Date(vault.lastAccessed).toLocaleDateString()}
           </Text>
         </View>
       </View>
 
       <View style={styles.quickActions}>
-        <TouchableOpacity style={styles.actionButton} onPress={() => setShowItemModal(true)}>
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() => setShowItemModal(true)}
+        >
           <Plus size={20} color="#007AFF" />
           <Text style={styles.actionButtonText}>Add Item</Text>
         </TouchableOpacity>
@@ -1020,19 +1295,31 @@ export default function VaultDetailScreen() {
           <SortAsc size={20} color="#8E8E93" />
           <Text style={styles.toolbarButtonText}>Sort</Text>
         </TouchableOpacity>
-        
+
         <View style={styles.viewToggle}>
           <TouchableOpacity
-            style={[styles.viewButton, viewMode === 'grid' && styles.viewButtonActive]}
+            style={[
+              styles.viewButton,
+              viewMode === 'grid' && styles.viewButtonActive,
+            ]}
             onPress={() => setViewMode('grid')}
           >
-            <Grid size={20} color={viewMode === 'grid' ? "#007AFF" : "#8E8E93"} />
+            <Grid
+              size={20}
+              color={viewMode === 'grid' ? '#007AFF' : '#8E8E93'}
+            />
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.viewButton, viewMode === 'list' && styles.viewButtonActive]}
+            style={[
+              styles.viewButton,
+              viewMode === 'list' && styles.viewButtonActive,
+            ]}
             onPress={() => setViewMode('list')}
           >
-            <List size={20} color={viewMode === 'list' ? "#007AFF" : "#8E8E93"} />
+            <List
+              size={20}
+              color={viewMode === 'list' ? '#007AFF' : '#8E8E93'}
+            />
           </TouchableOpacity>
         </View>
       </View>
@@ -1043,10 +1330,9 @@ export default function VaultDetailScreen() {
             <Plus size={48} color="#8E8E93" />
             <Text style={styles.emptyTitle}>No items yet</Text>
             <Text style={styles.emptySubtitle}>
-              {searchQuery || filterType 
+              {searchQuery || filterType
                 ? 'No items match your search or filter'
-                : 'Add your first secure item to get started'
-              }
+                : 'Add your first secure item to get started'}
             </Text>
             {!searchQuery && !filterType && (
               <TouchableOpacity
@@ -1059,8 +1345,12 @@ export default function VaultDetailScreen() {
             )}
           </View>
         ) : (
-          <View style={viewMode === 'grid' ? styles.gridContainer : styles.listContainer}>
-            {filteredAndSortedItems.map(item => 
+          <View
+            style={
+              viewMode === 'grid' ? styles.gridContainer : styles.listContainer
+            }
+          >
+            {filteredAndSortedItems.map((item) =>
               viewMode === 'grid' ? renderGridItem(item) : renderListItem(item)
             )}
           </View>
@@ -1097,8 +1387,12 @@ export default function VaultDetailScreen() {
                     {getItemIcon(selectedItem.type)}
                   </View>
                   <View style={styles.itemDetailsInfo}>
-                    <Text style={styles.itemDetailsName}>{selectedItem.name}</Text>
-                    <Text style={styles.itemDetailsType}>{getItemTypeLabel(selectedItem.type)}</Text>
+                    <Text style={styles.itemDetailsName}>
+                      {selectedItem.name}
+                    </Text>
+                    <Text style={styles.itemDetailsType}>
+                      {getItemTypeLabel(selectedItem.type)}
+                    </Text>
                   </View>
                   <TouchableOpacity
                     style={styles.closeModalButton}
@@ -1111,23 +1405,32 @@ export default function VaultDetailScreen() {
                 {selectedItem.type === 'photo' && (
                   <View style={styles.photoContainer}>
                     <Image
-                      source={{ 
-                        uri: photoUrls[selectedItem.id] || ItemManager.generateImageUrl(selectedItem.id, 'large') 
+                      source={{
+                        uri:
+                          (selectedItem as any).file_url ||
+                          (selectedItem as any).imageUrl ||
+                          photoUrls[selectedItem.id] ||
+                          ItemManager.generateImageUrl(
+                            selectedItem.id,
+                            'large'
+                          ),
                       }}
                       style={styles.fullPhoto}
                       resizeMode="contain"
                       onError={(error) => {
-                        console.log('Full photo load error for', selectedItem.id, error);
-                        // Try to refresh and get updated URL
-                        ItemManager.refreshPhotoItem(selectedItem.id).then(refreshedItem => {
-                          if (refreshedItem?.imageUrl) {
-                            setPhotoUrls(prev => ({ ...prev, [selectedItem.id]: refreshedItem.imageUrl! }));
-                          } else {
-                            // Final fallback to Pexels
-                            const fallbackUrl = ItemManager.generateImageUrl(selectedItem.id, 'large');
-                            setPhotoUrls(prev => ({ ...prev, [selectedItem.id]: fallbackUrl }));
-                          }
-                        });
+                        console.log(
+                          'Full photo load error for',
+                          selectedItem.id,
+                          error
+                        );
+                        const fallbackUrl = ItemManager.generateImageUrl(
+                          selectedItem.id,
+                          'large'
+                        );
+                        setPhotoUrls((prev) => ({
+                          ...prev,
+                          [selectedItem.id]: fallbackUrl,
+                        }));
                       }}
                     />
                   </View>
@@ -1137,7 +1440,9 @@ export default function VaultDetailScreen() {
                 <View style={styles.itemActions}>
                   <TouchableOpacity
                     style={styles.actionButton}
-                    onPress={() => {/* Edit functionality */}}
+                    onPress={() => {
+                      /* Edit functionality */
+                    }}
                   >
                     <Edit3 size={20} color="#007AFF" />
                     <Text style={styles.actionButtonText}>Edit</Text>
@@ -1147,7 +1452,11 @@ export default function VaultDetailScreen() {
                     onPress={() => handleDeleteItem(selectedItem)}
                   >
                     <Trash2 size={20} color="#FF3B30" />
-                    <Text style={[styles.actionButtonText, { color: '#FF3B30' }]}>Delete</Text>
+                    <Text
+                      style={[styles.actionButtonText, { color: '#FF3B30' }]}
+                    >
+                      Delete
+                    </Text>
                   </TouchableOpacity>
                 </View>
               </>
@@ -1163,7 +1472,7 @@ export default function VaultDetailScreen() {
         animationType="fade"
         onRequestClose={() => setShowSortModal(false)}
       >
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.modalOverlay}
           onPress={() => setShowSortModal(false)}
         >
@@ -1172,17 +1481,25 @@ export default function VaultDetailScreen() {
             {[
               { key: 'date', label: 'Date Modified' },
               { key: 'name', label: 'Name' },
-              { key: 'type', label: 'Type' }
-            ].map(option => (
+              { key: 'type', label: 'Type' },
+            ].map((option) => (
               <TouchableOpacity
                 key={option.key}
-                style={[styles.sortOption, sortBy === option.key && styles.selectedSortOption]}
+                style={[
+                  styles.sortOption,
+                  sortBy === option.key && styles.selectedSortOption,
+                ]}
                 onPress={() => {
                   setSortBy(option.key as any);
                   setShowSortModal(false);
                 }}
               >
-                <Text style={[styles.sortOptionText, sortBy === option.key && styles.selectedSortText]}>
+                <Text
+                  style={[
+                    styles.sortOptionText,
+                    sortBy === option.key && styles.selectedSortText,
+                  ]}
+                >
                   {option.label}
                 </Text>
               </TouchableOpacity>
@@ -1198,7 +1515,7 @@ export default function VaultDetailScreen() {
         animationType="fade"
         onRequestClose={() => setShowFilterModal(false)}
       >
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.modalOverlay}
           onPress={() => setShowFilterModal(false)}
         >
@@ -1211,17 +1528,25 @@ export default function VaultDetailScreen() {
               { key: 'card', label: 'Cards' },
               { key: 'password', label: 'Passwords' },
               { key: 'note', label: 'Notes' },
-              { key: 'file', label: 'Files' }
-            ].map(option => (
+              { key: 'file', label: 'Files' },
+            ].map((option) => (
               <TouchableOpacity
                 key={option.key || 'all'}
-                style={[styles.sortOption, filterType === option.key && styles.selectedSortOption]}
+                style={[
+                  styles.sortOption,
+                  filterType === option.key && styles.selectedSortOption,
+                ]}
                 onPress={() => {
                   setFilterType(option.key);
                   setShowFilterModal(false);
                 }}
               >
-                <Text style={[styles.sortOptionText, filterType === option.key && styles.selectedSortText]}>
+                <Text
+                  style={[
+                    styles.sortOptionText,
+                    filterType === option.key && styles.selectedSortText,
+                  ]}
+                >
                   {option.label}
                 </Text>
               </TouchableOpacity>
@@ -1248,7 +1573,7 @@ export default function VaultDetailScreen() {
                 <X size={24} color="#FFFFFF" />
               </TouchableOpacity>
             </View>
-            
+
             <Text style={styles.shareSubtitle}>
               Choose how you'd like to share "{vault?.name}"
             </Text>
@@ -1303,7 +1628,8 @@ export default function VaultDetailScreen() {
             <View style={styles.shareWarning}>
               <Shield size={16} color="#FF9500" />
               <Text style={styles.shareWarningText}>
-                Shared data will be encrypted and require authentication to access
+                Shared data will be encrypted and require authentication to
+                access
               </Text>
             </View>
           </View>
@@ -1328,15 +1654,20 @@ export default function VaultDetailScreen() {
                 <X size={24} color="#FFFFFF" />
               </TouchableOpacity>
             </View>
-            
+
             <Text style={styles.activitySubtitle}>
               Recent activity for "{vault?.name}"
             </Text>
 
-            <ScrollView style={styles.activityList} showsVerticalScrollIndicator={false}>
+            <ScrollView
+              style={styles.activityList}
+              showsVerticalScrollIndicator={false}
+            >
               {loadingActivity ? (
                 <View style={styles.activityLoading}>
-                  <Text style={styles.activityLoadingText}>Loading activity...</Text>
+                  <Text style={styles.activityLoadingText}>
+                    Loading activity...
+                  </Text>
                 </View>
               ) : activityLog.length === 0 ? (
                 <View style={styles.activityEmpty}>
@@ -1354,7 +1685,10 @@ export default function VaultDetailScreen() {
                     </View>
                     <View style={styles.activityItemContent}>
                       <Text style={styles.activityItemTitle}>
-                        {getActivityDescription(activity.type, activity.details)}
+                        {getActivityDescription(
+                          activity.type,
+                          activity.details
+                        )}
                       </Text>
                       <Text style={styles.activityItemTime}>
                         {formatActivityTime(activity.timestamp)}
@@ -1377,16 +1711,20 @@ export default function VaultDetailScreen() {
                       text: 'Clear',
                       style: 'destructive',
                       onPress: async () => {
-                        await SecurityManager.clearVaultActivity(vault?.id || '');
+                        await SecurityManager.clearVaultActivity(
+                          vault?.id || ''
+                        );
                         setActivityLog([]);
-                      }
-                    }
+                      },
+                    },
                   ]
                 );
               }}
             >
               <Trash2 size={16} color="#FF3B30" />
-              <Text style={styles.clearActivityButtonText}>Clear Activity Log</Text>
+              <Text style={styles.clearActivityButtonText}>
+                Clear Activity Log
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1803,6 +2141,7 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 200,
     borderRadius: 12,
+    objectFit: 'cover',
   },
   itemDetailsScroll: {
     maxHeight: 400,
@@ -2127,6 +2466,12 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Medium',
     color: '#FF3B30',
     marginLeft: 8,
+  },
+  videoPlayer: {
+    width: '100%',
+    height: 200,
+    borderRadius: 12,
+    backgroundColor: '#000000',
   },
   videoItem: {
     backgroundColor: '#2C2C2E',

@@ -1,15 +1,20 @@
-
 //_layout.tsx
 import { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 import { useFonts } from 'expo-font';
-import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
+import {
+  Inter_400Regular,
+  Inter_500Medium,
+  Inter_600SemiBold,
+  Inter_700Bold,
+} from '@expo-google-fonts/inter';
 import * as SplashScreen from 'expo-splash-screen';
 import Purchases from 'react-native-purchases';
 import { Platform } from 'react-native';
 import { EXPO_PUBLIC_REVENUECAT_API_KEY_IOS } from '@/constants/ApiUrl';
+import { ReactQueryProvider } from '@/utils/react-query-provider';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -23,11 +28,12 @@ export default function RootLayout() {
     'Inter-Bold': Inter_700Bold,
   });
 
-
   useEffect(() => {
     const initializePurchases = async () => {
       if (Platform.OS === 'ios') {
-        await Purchases.configure({ apiKey: EXPO_PUBLIC_REVENUECAT_API_KEY_IOS });
+        await Purchases.configure({
+          apiKey: EXPO_PUBLIC_REVENUECAT_API_KEY_IOS,
+        });
       }
     };
 
@@ -46,14 +52,16 @@ export default function RootLayout() {
 
   return (
     <>
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="index" />
-        <Stack.Screen name="setup" />
-        <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="paywall" />
-        <Stack.Screen name="+not-found" />
-      </Stack>
-      <StatusBar style="light" />
+      <ReactQueryProvider>
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="index" />
+          <Stack.Screen name="setup" />
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="paywall" />
+          <Stack.Screen name="+not-found" />
+        </Stack>
+        <StatusBar style="light" />
+      </ReactQueryProvider>
     </>
   );
 }

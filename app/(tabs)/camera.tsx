@@ -1,29 +1,68 @@
-import { View, Text, StyleSheet, TouchableOpacity, Alert, Platform } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Alert,
+  Platform,
+} from 'react-native';
 import { useState, useRef, useEffect } from 'react';
-import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
+import {
+  CameraView,
+  CameraType,
+  useCameraPermissions,
+  CameraRecordingOptions,
+} from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
-import { Camera, RotateCcw, Image, FlashlightOff as FlashOff, Slash as FlashOn, Video, Mic, Square, Play, Pause } from 'lucide-react-native';
+import { MediaTypeOptions } from 'expo-image-picker';
+import {
+  Camera,
+  RotateCcw,
+  Image,
+  FlashlightOff as FlashOff,
+  Slash as FlashOn,
+  Video,
+  Mic,
+  Square,
+  Play,
+  Pause,
+} from 'lucide-react-native';
 import { Audio } from 'expo-av';
-import { PhotoManager } from '@/utils/PhotoManager';
-import { SecurityManager } from '@/utils/SecurityManager';
-import { VaultManager } from '@/utils/VaultManager';
+
+import { useCreateVaultItem, useUploadFile } from '@/hooks/useVaultItems';
 import { SubscriptionManager } from '@/utils/SubscriptionManager';
 import { ItemManager } from '@/utils/ItemManager';
 import VaultSelectionModal from '@/components/VaultSelectionModal';
+import VideoRecorder from '@/components/VideoRecorder';
+import { supabase } from '@/utils/SupabaseClient';
 
 export default function CameraScreen() {
   const [facing, setFacing] = useState<CameraType>('back');
   const [permission, requestPermission] = useCameraPermissions();
   const [flash, setFlash] = useState(false);
   const [isCapturing, setIsCapturing] = useState(false);
-  const [captureMode, setCaptureMode] = useState<'photo' | 'video' | 'audio'>('photo');
-  const [isRecordingVideo, setIsRecordingVideo] = useState(false);
+  const [captureMode, setCaptureMode] = useState<'photo' | 'video' | 'audio'>(
+    'photo'
+  );
+
+  const [loadingSave, setLoadingSave] = useState<boolean>(false);
+
   const [isRecordingAudio, setIsRecordingAudio] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
-  const [audioRecording, setAudioRecording] = useState<Audio.Recording | null>(null);
+  const [audioRecording, setAudioRecording] = useState<Audio.Recording | null>(
+    null
+  );
   const cameraRef = useRef<CameraView>(null);
   const [showVaultSelection, setShowVaultSelection] = useState(false);
   const [pendingPhotoData, setPendingPhotoData] = useState<any>(null);
+  const [isCameraReady, setIsCameraReady] = useState(false);
+
+  // Reset camera ready state when camera mode changes
+  useEffect(() => {
+    setIsCameraReady(false);
+    const timer = setTimeout(() => setIsCameraReady(true), 2000);
+    return () => clearTimeout(timer);
+  }, [captureMode, facing]);
 
   useEffect(() => {
     if (Platform.OS !== 'web') {
@@ -32,7 +71,7 @@ export default function CameraScreen() {
   }, []);
 
   const toggleCameraFacing = () => {
-    setFacing(current => (current === 'back' ? 'front' : 'back'));
+    setFacing((current) => (current === 'back' ? 'front' : 'back'));
   };
 
   const toggleFlash = () => {
@@ -41,7 +80,10 @@ export default function CameraScreen() {
 
   const takePicture = async () => {
     if (Platform.OS === 'web') {
-      Alert.alert('Camera not available', 'Camera functionality is not available on web');
+      Alert.alert(
+        'Camera not available',
+        'Camera functionality is not available on web'
+      );
       return;
     }
 
@@ -64,15 +106,17 @@ export default function CameraScreen() {
       if (photo) {
         // Prepare photo data and show vault selection
         setPendingPhotoData({
-          type: 'photo' as const,
+          type: 'photo',
           name: `Photo ${Date.now()}`,
           filename: `photo_${Date.now()}.jpg`,
+          file_path: null,
+          file_url: null,
           encryptedData: photo.base64 || photo.uri,
           size: photo.base64?.length || 1024000,
           imageUrl: photo.uri,
           thumbnailUrl: photo.uri,
           fullSizeUrl: photo.uri,
-          actualPhotoData: photo.base64 || photo.uri
+          actualPhotoData: photo.base64 || photo.uri,
         });
         setShowVaultSelection(true);
       }
@@ -84,75 +128,17 @@ export default function CameraScreen() {
     }
   };
 
-  const startVideoRecording = async () => {
-    if (Platform.OS === 'web') {
-      Alert.alert('Video recording not available', 'Video recording is not available on web');
-      return;
-    }
-
-    // Check subscription limits
-    const canAdd = await SubscriptionManager.canAddVideo();
-    if (!canAdd.allowed) {
-      Alert.alert('Upgrade Required', canAdd.reason);
-      return;
-    }
-
-    if (!cameraRef.current || isRecordingVideo) return;
-
-    try {
-      setIsRecordingVideo(true);
-      setRecordingDuration(0);
-      
-      // Start duration timer
-      const timer = setInterval(() => {
-        setRecordingDuration(prev => prev + 1);
-      }, 1000);
-
-      const video = await cameraRef.current.recordAsync({
-        quality: '720p',
-        maxDuration: 300, // 5 minutes max
-      });
-
-      clearInterval(timer);
-
-      if (video) {
-        setPendingPhotoData({
-          type: 'video' as const,
-          name: `Video ${Date.now()}`,
-          filename: `video_${Date.now()}.mp4`,
-          encryptedData: video.uri,
-          size: 5120000, // Estimate
-          duration: recordingDuration,
-          videoUrl: video.uri,
-          thumbnailUrl: video.uri,
-          resolution: '1280x720',
-          format: 'mp4',
-          actualVideoData: video.uri
-        });
-        setShowVaultSelection(true);
-      }
-    } catch (error) {
-      console.error('Video recording error:', error);
-      Alert.alert('Error', 'Failed to record video');
-    } finally {
-      setIsRecordingVideo(false);
-      setRecordingDuration(0);
-    }
-  };
-
-  const stopVideoRecording = async () => {
-    if (!cameraRef.current || !isRecordingVideo) return;
-
-    try {
-      await cameraRef.current.stopRecording();
-    } catch (error) {
-      console.error('Failed to stop video recording:', error);
-    }
+  const handleVideoRecorded = (videoData: any) => {
+    setPendingPhotoData(videoData);
+    setShowVaultSelection(true);
   };
 
   const startAudioRecording = async () => {
     if (Platform.OS === 'web') {
-      Alert.alert('Audio recording not available', 'Audio recording is not available on web');
+      Alert.alert(
+        'Audio recording not available',
+        'Audio recording is not available on web'
+      );
       return;
     }
 
@@ -173,16 +159,16 @@ export default function CameraScreen() {
       const { recording } = await Audio.Recording.createAsync(
         Audio.RecordingOptionsPresets.HIGH_QUALITY
       );
-      
+
       setAudioRecording(recording);
       setIsRecordingAudio(true);
       setRecordingDuration(0);
-      
+
       // Start duration timer
       const timer = setInterval(() => {
-        setRecordingDuration(prev => prev + 1);
+        setRecordingDuration((prev) => prev + 1);
       }, 1000);
-      
+
       recording.setOnRecordingStatusUpdate((status) => {
         if (!status.isRecording) {
           clearInterval(timer);
@@ -203,24 +189,26 @@ export default function CameraScreen() {
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: false,
       });
-      
+
       const uri = audioRecording.getURI();
       if (uri) {
         setPendingPhotoData({
-          type: 'audio' as const,
+          type: 'audio',
           name: `Audio ${Date.now()}`,
           filename: `audio_${Date.now()}.m4a`,
+          file_path: null,
+          file_url: null,
           encryptedData: uri,
-          size: 1024000, // Estimate
+          size: 1024000,
           duration: recordingDuration,
           audioUrl: uri,
           format: 'm4a',
           bitrate: 128,
-          actualAudioData: uri
+          actualAudioData: uri,
         });
         setShowVaultSelection(true);
       }
-      
+
       setAudioRecording(null);
       setRecordingDuration(0);
     } catch (error) {
@@ -231,23 +219,33 @@ export default function CameraScreen() {
   const pickFromLibrary = async () => {
     try {
       // Check subscription limits
-      const canAdd = captureMode === 'photo' ? await SubscriptionManager.canAddPhoto() :
-                    captureMode === 'video' ? await SubscriptionManager.canAddVideo() :
-                    await SubscriptionManager.canAddAudio();
+      const canAdd =
+        captureMode === 'photo'
+          ? await SubscriptionManager.canAddPhoto()
+          : captureMode === 'video'
+          ? await SubscriptionManager.canAddVideo()
+          : await SubscriptionManager.canAddAudio();
       if (!canAdd.allowed) {
         Alert.alert('Upgrade Required', canAdd.reason);
         return;
       }
 
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      const { status } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission required', 'Please grant permission to access your photo library');
+        Alert.alert(
+          'Permission required',
+          'Please grant permission to access your photo library'
+        );
         return;
       }
 
-      const mediaTypes = captureMode === 'photo' ? ImagePicker.MediaTypeOptions.Images :
-                        captureMode === 'video' ? ImagePicker.MediaTypeOptions.Videos :
-                        ImagePicker.MediaTypeOptions.All;
+      const mediaTypes =
+        captureMode === 'photo'
+          ? MediaTypeOptions.Images
+          : captureMode === 'video'
+          ? MediaTypeOptions.Videos
+          : MediaTypeOptions.All;
 
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes,
@@ -259,15 +257,31 @@ export default function CameraScreen() {
 
       if (!result.canceled && result.assets[0]) {
         const asset = result.assets[0];
-        
+
         // Prepare photo data and show vault selection
         setPendingPhotoData({
-          type: captureMode as const,
-          name: `Imported ${captureMode.charAt(0).toUpperCase() + captureMode.slice(1)} ${Date.now()}`,
-          filename: `${captureMode}_${Date.now()}.${captureMode === 'photo' ? 'jpg' : captureMode === 'video' ? 'mp4' : 'm4a'}`,
+          type: captureMode,
+          name: `Imported ${
+            captureMode.charAt(0).toUpperCase() + captureMode.slice(1)
+          } ${Date.now()}`,
+          filename: `${captureMode}_${Date.now()}.${
+            captureMode === 'photo'
+              ? 'jpg'
+              : captureMode === 'video'
+              ? 'mp4'
+              : 'm4a'
+          }`,
+          file_path: null,
+          file_url: null,
           encryptedData: asset.base64 || asset.uri,
           size: asset.base64?.length || 1024000,
-          duration: asset.duration || (captureMode === 'video' ? 30 : captureMode === 'audio' ? 60 : undefined),
+          duration:
+            asset.duration ||
+            (captureMode === 'video'
+              ? 30
+              : captureMode === 'audio'
+              ? 60
+              : undefined),
           imageUrl: asset.uri,
           thumbnailUrl: asset.uri,
           fullSizeUrl: asset.uri,
@@ -275,7 +289,7 @@ export default function CameraScreen() {
           audioUrl: captureMode === 'audio' ? asset.uri : undefined,
           actualPhotoData: asset.base64 || asset.uri,
           actualVideoData: captureMode === 'video' ? asset.uri : undefined,
-          actualAudioData: captureMode === 'audio' ? asset.uri : undefined
+          actualAudioData: captureMode === 'audio' ? asset.uri : undefined,
         });
         setShowVaultSelection(true);
       }
@@ -285,28 +299,48 @@ export default function CameraScreen() {
     }
   };
 
+  const { mutateAsync: createItem } = useCreateVaultItem();
+  const { mutateAsync: uploadFile } = useUploadFile();
+
   const handleVaultSelected = async (vaultId: string) => {
     if (!pendingPhotoData) return;
 
     try {
-      const vault = await VaultManager.getVault(vaultId);
-      if (!vault) {
-        Alert.alert('Error', 'Selected vault not found');
-        return;
+      setLoadingSave(true);
+      let finalItemData = { ...pendingPhotoData };
+
+      // For file types (photo, video, audio), upload the file first
+      if (['photo', 'video', 'audio'].includes(pendingPhotoData.type)) {
+        try {
+          const uploadResult = await uploadFile({
+            file:
+              pendingPhotoData.imageUrl ||
+              pendingPhotoData.videoUrl ||
+              pendingPhotoData.audioUrl,
+            vaultId,
+            fileName: `${Date.now()}_${pendingPhotoData.filename}`,
+          });
+
+          finalItemData.file_path = uploadResult.filePath;
+          const { data } = supabase.storage
+            .from('vault-files')
+            .getPublicUrl(uploadResult.filePath);
+          finalItemData.file_url = data.publicUrl;
+        } catch (uploadError) {
+          console.error('File upload failed:', uploadError);
+        }
       }
 
-      const savedPhoto = await ItemManager.createItem(pendingPhotoData, vaultId);
-      
-      await SubscriptionManager.incrementUsage('photo');
-      SecurityManager.logSecurityEvent('photo_captured');
-      Alert.alert('Success', `Photo saved securely to ${vault.name}`);
-      
-      // Clear pending data
+      await createItem({ vaultId, itemData: finalItemData });
+      Alert.alert('Success', `${pendingPhotoData.type} saved securely`);
+
       setPendingPhotoData(null);
       setShowVaultSelection(false);
     } catch (error) {
-      console.error('Failed to save photo:', error);
-      Alert.alert('Error', 'Failed to save photo');
+      console.error('Failed to save media:', error);
+      Alert.alert('Error', `Failed to save ${pendingPhotoData.type}`);
+    } finally {
+      setLoadingSave(false);
     }
   };
 
@@ -315,41 +349,12 @@ export default function CameraScreen() {
     setPendingPhotoData(null);
   };
 
-  if (Platform.OS === 'web') {
-    return (
-      <View style={styles.container}>
-        <View style={styles.webContainer}>
-          <Camera size={64} color="#8E8E93" />
-          <Text style={styles.webTitle}>Camera Not Available</Text>
-          <Text style={styles.webSubtitle}>
-            Camera functionality is not available on web platform
-          </Text>
-          <TouchableOpacity
-            style={styles.importButton}
-            onPress={pickFromLibrary}
-          >
-            <Image size={24} color="#FFFFFF" />
-            <Text style={styles.importButtonText}>Import from Library</Text>
-          </TouchableOpacity>
-          <Text style={styles.webNote}>
-            Photos will be saved to your most recently accessed unlocked vault
-          </Text>
-        </View>
-        <VaultSelectionModal
-          visible={showVaultSelection}
-          onClose={handleVaultSelectionClose}
-          onVaultSelected={handleVaultSelected}
-          title="Save Photo"
-          subtitle="Choose which vault to save this photo to"
-        />
-      </View>
-    );
-  }
-
   if (!permission) {
     return (
       <View style={styles.container}>
-        <Text style={styles.permissionText}>Requesting camera permission...</Text>
+        <Text style={styles.permissionText}>
+          Requesting camera permission...
+        </Text>
       </View>
     );
   }
@@ -380,10 +385,7 @@ export default function CameraScreen() {
         <Text style={styles.title}>Vaultify Camera</Text>
         <View style={styles.headerButtons}>
           {captureMode === 'photo' && (
-            <TouchableOpacity
-              style={styles.headerButton}
-              onPress={toggleFlash}
-            >
+            <TouchableOpacity style={styles.headerButton} onPress={toggleFlash}>
               {flash ? (
                 <FlashOn size={24} color="#FFFFFF" />
               ) : (
@@ -397,53 +399,87 @@ export default function CameraScreen() {
       {/* Mode Selection */}
       <View style={styles.modeSelector}>
         <TouchableOpacity
-          style={[styles.modeButton, captureMode === 'photo' && styles.activeModeButton]}
+          style={[
+            styles.modeButton,
+            captureMode === 'photo' && styles.activeModeButton,
+          ]}
           onPress={() => setCaptureMode('photo')}
         >
-          <Camera size={20} color={captureMode === 'photo' ? '#007AFF' : '#8E8E93'} />
-          <Text style={[styles.modeButtonText, captureMode === 'photo' && styles.activeModeButtonText]}>
+          <Camera
+            size={20}
+            color={captureMode === 'photo' ? '#007AFF' : '#8E8E93'}
+          />
+          <Text
+            style={[
+              styles.modeButtonText,
+              captureMode === 'photo' && styles.activeModeButtonText,
+            ]}
+          >
             Photo
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.modeButton, captureMode === 'video' && styles.activeModeButton]}
+          style={[
+            styles.modeButton,
+            captureMode === 'video' && styles.activeModeButton,
+          ]}
           onPress={() => setCaptureMode('video')}
         >
-          <Video size={20} color={captureMode === 'video' ? '#007AFF' : '#8E8E93'} />
-          <Text style={[styles.modeButtonText, captureMode === 'video' && styles.activeModeButtonText]}>
+          <Video
+            size={20}
+            color={captureMode === 'video' ? '#007AFF' : '#8E8E93'}
+          />
+          <Text
+            style={[
+              styles.modeButtonText,
+              captureMode === 'video' && styles.activeModeButtonText,
+            ]}
+          >
             Video
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.modeButton, captureMode === 'audio' && styles.activeModeButton]}
+          style={[
+            styles.modeButton,
+            captureMode === 'audio' && styles.activeModeButton,
+          ]}
           onPress={() => setCaptureMode('audio')}
         >
-          <Mic size={20} color={captureMode === 'audio' ? '#007AFF' : '#8E8E93'} />
-          <Text style={[styles.modeButtonText, captureMode === 'audio' && styles.activeModeButtonText]}>
+          <Mic
+            size={20}
+            color={captureMode === 'audio' ? '#007AFF' : '#8E8E93'}
+          />
+          <Text
+            style={[
+              styles.modeButtonText,
+              captureMode === 'audio' && styles.activeModeButtonText,
+            ]}
+          >
             Audio
           </Text>
         </TouchableOpacity>
       </View>
 
-      {captureMode !== 'audio' ? (
-        <CameraView
-          ref={cameraRef}
-          style={styles.camera}
-          facing={facing}
-          flash={flash ? 'on' : 'off'}
-        >
+      {captureMode === 'video' ? (
+        <View style={styles.cameraContainer}>
+          <VideoRecorder
+            facing={facing}
+            onVideoRecorded={handleVideoRecorded}
+          />
+        </View>
+      ) : captureMode === 'photo' ? (
+        <View style={styles.cameraContainer}>
+          <CameraView
+            ref={cameraRef}
+            style={styles.camera}
+            facing={facing}
+            flash={flash ? 'on' : 'off'}
+            onCameraReady={() => setIsCameraReady(true)}
+          />
           <View style={styles.cameraOverlay}>
-            {captureMode === 'photo' && <View style={styles.focusFrame} />}
-            {isRecordingVideo && (
-              <View style={styles.recordingIndicator}>
-                <View style={styles.recordingDot} />
-                <Text style={styles.recordingText}>
-                  REC {ItemManager.formatDuration(recordingDuration)}
-                </Text>
-              </View>
-            )}
+            <View style={styles.focusFrame} />
           </View>
-        </CameraView>
+        </View>
       ) : (
         <View style={styles.audioRecordingContainer}>
           <View style={styles.audioVisualizer}>
@@ -455,7 +491,7 @@ export default function CameraScreen() {
                     key={i}
                     style={[
                       styles.audioWave,
-                      { animationDelay: `${i * 0.1}s` }
+                      { animationDelay: `${i * 0.1}s` },
                     ]}
                   />
                 ))}
@@ -483,7 +519,10 @@ export default function CameraScreen() {
 
         {captureMode === 'photo' && (
           <TouchableOpacity
-            style={[styles.captureButton, isCapturing && styles.capturingButton]}
+            style={[
+              styles.captureButton,
+              isCapturing && styles.capturingButton,
+            ]}
             onPress={takePicture}
             disabled={isCapturing}
           >
@@ -491,23 +530,15 @@ export default function CameraScreen() {
           </TouchableOpacity>
         )}
 
-        {captureMode === 'video' && (
-          <TouchableOpacity
-            style={[styles.captureButton, isRecordingVideo && styles.recordingButton]}
-            onPress={isRecordingVideo ? stopVideoRecording : startVideoRecording}
-          >
-            {isRecordingVideo ? (
-              <Square size={32} color="#FFFFFF" />
-            ) : (
-              <Video size={32} color="#FFFFFF" />
-            )}
-          </TouchableOpacity>
-        )}
-
         {captureMode === 'audio' && (
           <TouchableOpacity
-            style={[styles.captureButton, isRecordingAudio && styles.recordingButton]}
-            onPress={isRecordingAudio ? stopAudioRecording : startAudioRecording}
+            style={[
+              styles.captureButton,
+              isRecordingAudio && styles.recordingButton,
+            ]}
+            onPress={
+              isRecordingAudio ? stopAudioRecording : startAudioRecording
+            }
           >
             {isRecordingAudio ? (
               <Square size={32} color="#FFFFFF" />
@@ -526,18 +557,17 @@ export default function CameraScreen() {
             <Text style={styles.controlButtonText}>Flip</Text>
           </TouchableOpacity>
         )}
-        
-        {captureMode === 'audio' && (
-          <View style={styles.controlButton} />
-        )}
+
+        {captureMode === 'audio' && <View style={styles.controlButton} />}
       </View>
 
       <VaultSelectionModal
-        visible={showVaultSelection}
+        visible={showVaultSelection || loadingSave}
         onClose={handleVaultSelectionClose}
         onVaultSelected={handleVaultSelected}
         title="Save Photo"
         subtitle="Choose which vault to save this photo to"
+        isLoading={loadingSave}
       />
     </View>
   );
@@ -603,17 +633,24 @@ const styles = StyleSheet.create({
   activeModeButtonText: {
     color: '#007AFF',
   },
-  camera: {
+  cameraContainer: {
     flex: 1,
     margin: 20,
     borderRadius: 16,
     overflow: 'hidden',
+    position: 'relative',
+  },
+  camera: {
+    flex: 1,
   },
   cameraOverlay: {
-    flex: 1,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     justifyContent: 'center',
     alignItems: 'center',
-    position: 'relative',
   },
   focusFrame: {
     width: 200,

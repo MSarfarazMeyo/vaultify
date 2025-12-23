@@ -1,7 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView, Alert } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Modal,
+  ScrollView,
+  Alert,
+} from 'react-native';
 import { X, FolderOpen, Plus, Check } from 'lucide-react-native';
-import { VaultManager, Vault } from '@/utils/VaultManager';
+import { useVaults } from '@/hooks/useVaults';
 
 interface VaultSelectionModalProps {
   visible: boolean;
@@ -9,55 +17,34 @@ interface VaultSelectionModalProps {
   onVaultSelected: (vaultId: string) => void;
   title?: string;
   subtitle?: string;
+  isLoading?: boolean;
 }
 
-export default function VaultSelectionModal({ 
-  visible, 
-  onClose, 
-  onVaultSelected, 
-  title = "Choose Vault",
-  subtitle = "Select where to save this item"
+export default function VaultSelectionModal({
+  visible,
+  onClose,
+  onVaultSelected,
+  title = 'Choose Vault',
+  subtitle = 'Select where to save this item',
+  isLoading = false,
 }: VaultSelectionModalProps) {
-  const [vaults, setVaults] = useState<Vault[]>([]);
-  const [loading, setLoading] = useState(true);
   const [selectedVaultId, setSelectedVaultId] = useState<string | null>(null);
+  const { data: vaults = [], isLoading: loading } = useVaults();
 
   useEffect(() => {
-    if (visible) {
-      loadVaults();
+    if (vaults.length > 0 && !selectedVaultId) {
+      const mostRecent = vaults.reduce((prev, current) =>
+        prev.lastAccessed > current.lastAccessed ? prev : current
+      );
+      setSelectedVaultId(mostRecent.id);
     }
-  }, [visible]);
-
-  const loadVaults = async () => {
-    try {
-      setLoading(true);
-      const allVaults = await VaultManager.getAllVaults();
-      // Only show unlocked vaults
-      const unlockedVaults = allVaults.filter(vault => !vault.isLocked);
-      setVaults(unlockedVaults);
-      
-      // Pre-select the most recently accessed vault
-      if (unlockedVaults.length > 0) {
-        const mostRecent = unlockedVaults.reduce((prev, current) => 
-          prev.lastAccessed > current.lastAccessed ? prev : current
-        );
-        setSelectedVaultId(mostRecent.id);
-      }
-    } catch (error) {
-      console.error('Failed to load vaults:', error);
-      Alert.alert('Error', 'Failed to load vaults');
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [vaults, selectedVaultId]);
 
   const handleCreateNewVault = () => {
     Alert.alert(
       'Create New Vault',
       'You can create a new vault from the main vaults screen.',
-      [
-        { text: 'OK', style: 'default' }
-      ]
+      [{ text: 'OK', style: 'default' }]
     );
   };
 
@@ -83,10 +70,13 @@ export default function VaultSelectionModal({
               <X size={24} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
-          
+
           <Text style={styles.subtitle}>{subtitle}</Text>
 
-          <ScrollView style={styles.vaultsList} showsVerticalScrollIndicator={false}>
+          <ScrollView
+            style={styles.vaultsList}
+            showsVerticalScrollIndicator={false}
+          >
             {loading ? (
               <View style={styles.loadingContainer}>
                 <Text style={styles.loadingText}>Loading vaults...</Text>
@@ -98,7 +88,7 @@ export default function VaultSelectionModal({
                 <Text style={styles.emptySubtitle}>
                   Create a vault or unlock an existing one to save items
                 </Text>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.createVaultButton}
                   onPress={handleCreateNewVault}
                 >
@@ -112,18 +102,23 @@ export default function VaultSelectionModal({
                   key={vault.id}
                   style={[
                     styles.vaultOption,
-                    selectedVaultId === vault.id && styles.selectedVaultOption
+                    selectedVaultId === vault.id && styles.selectedVaultOption,
                   ]}
                   onPress={() => setSelectedVaultId(vault.id)}
                 >
-                  <View style={[styles.vaultIcon, { backgroundColor: vault.color }]}>
+                  <View
+                    style={[styles.vaultIcon, { backgroundColor: vault.color }]}
+                  >
                     <FolderOpen size={24} color="#FFFFFF" />
                   </View>
                   <View style={styles.vaultInfo}>
                     <Text style={styles.vaultName}>{vault.name}</Text>
-                    <Text style={styles.vaultDescription}>{vault.description}</Text>
+                    <Text style={styles.vaultDescription}>
+                      {vault.description}
+                    </Text>
                     <Text style={styles.vaultStats}>
-                      {vault.itemCount} items • Last accessed {new Date(vault.lastAccessed).toLocaleDateString()}
+                      {vault.itemCount} items • Last accessed{' '}
+                      {new Date(vault.lastAccessed).toLocaleDateString()}
                     </Text>
                   </View>
                   {selectedVaultId === vault.id && (
@@ -140,15 +135,17 @@ export default function VaultSelectionModal({
             <TouchableOpacity style={styles.cancelButton} onPress={onClose}>
               <Text style={styles.cancelButtonText}>Cancel</Text>
             </TouchableOpacity>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[
-                styles.confirmButton, 
-                !selectedVaultId && styles.disabledButton
-              ]} 
+                styles.confirmButton,
+                (!selectedVaultId || isLoading) && styles.disabledButton,
+              ]}
               onPress={handleConfirm}
-              disabled={!selectedVaultId}
+              disabled={!selectedVaultId || isLoading}
             >
-              <Text style={styles.confirmButtonText}>Save Here</Text>
+              <Text style={styles.confirmButtonText}>
+                {isLoading ? 'Saving...' : 'Save Here'}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>

@@ -15,9 +15,7 @@
     "updates": {
       "fallbackToCacheTimeout": 0
     },
-    "assetBundlePatterns": [
-      "**/*"
-    ],
+    "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": true,
       "usesAppleSignIn": true,
@@ -42,7 +40,17 @@
           "photosPermission": "Your permission allows us to access your media gallery so you can upload images from your photo library ."
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-video",
+      "expo-audio",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera",
+          "microphonePermission": "Allow $(PRODUCT_NAME) to access your microphone",
+          "recordAudioAndroid": true
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

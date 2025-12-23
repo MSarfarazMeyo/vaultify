@@ -3,11 +3,11 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'expo-router';
 import { Plus, FolderOpen, Lock, Eye, Search, MoveVertical as MoreVertical, Star, TrendingUp, Shield, Clock, Filter, Import as SortAsc, Calendar, Image as ImageIcon } from 'lucide-react-native';
 import { Video, Mic } from 'lucide-react-native';
-import { VaultManager } from '@/utils/VaultManager';
 import { SecurityManager } from '@/utils/SecurityManager';
 import { SubscriptionManager } from '@/utils/SubscriptionManager';
 import PremiumFeatureCard from '@/components/PremiumFeatureCard';
 import StorageIndicator from '@/components/StorageIndicator';
+import { useVaults, useCreateVault, useDeleteVault, useUpdateVault } from '@/hooks/useVaults';
 
 interface Vault {
   id: string;
@@ -22,7 +22,6 @@ interface Vault {
 
 export default function VaultsScreen() {
   const router = useRouter();
-  const [vaults, setVaults] = useState<Vault[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newVaultName, setNewVaultName] = useState('');
@@ -31,51 +30,26 @@ export default function VaultsScreen() {
   const [sortBy, setSortBy] = useState<'name' | 'date' | 'photos'>('date');
   const [filterFavorites, setFilterFavorites] = useState(false);
   const [showSortModal, setShowSortModal] = useState(false);
-  const [stats, setStats] = useState({ totalPhotos: 0, totalVaults: 0, recentActivity: 0 });
   const [favoriteVaults, setFavoriteVaults] = useState<Set<string>>(new Set());
+
+  // TanStack Query hooks
+  const { data: vaults = [], isLoading, error } = useVaults();
+  const { mutateAsync: createVault, isPending: isCreating } = useCreateVault();
+  const { mutateAsync: deleteVault, isPending: isDeleting } = useDeleteVault();
+  const { mutateAsync: updateVault, isPending: isUpdating } = useUpdateVault();
 
   const vaultColors = ['#007AFF', '#34C759', '#FF9500', '#FF3B30', '#AF52DE', '#FF2D92'];
 
-  useEffect(() => {
-    loadVaults();
-  }, [sortBy]);
-
-  const loadVaults = async () => {
-    try {
-      const vaultData = await VaultManager.getAllVaults();
-      
-      // Calculate stats
-      const totalItems = vaultData.reduce((sum, vault) => sum + vault.itemCount, 0);
-      const recentActivity = vaultData.filter(v => 
-        Date.now() - v.lastAccessed < 24 * 60 * 60 * 1000
-      ).length;
-      
-      setStats({
-        totalPhotos: totalItems,
-        totalVaults: vaultData.length,
-        recentActivity
-      });
-      
-      // Sort vaults
-      const sortedVaults = [...vaultData].sort((a, b) => {
-        switch (sortBy) {
-          case 'name':
-            return a.name.localeCompare(b.name);
-          case 'photos':
-            return b.itemCount - a.itemCount;
-          case 'date':
-          default:
-            return b.lastAccessed - a.lastAccessed;
-        }
-      });
-      
-      setVaults(sortedVaults);
-    } catch (error) {
-      console.error('Failed to load vaults:', error);
-    }
+  // Calculate stats from vaults data
+  const stats = {
+    totalVaults: vaults.length,
+    totalPhotos: vaults.reduce((sum, vault) => sum + (vault.itemCount || 0), 0),
+    recentActivity: vaults.filter(v => 
+      Date.now() - (v.lastAccessed || 0) < 24 * 60 * 60 * 1000
+    ).length
   };
 
-  const createVault = async () => {
+  const handleCreateVault = async () => {
     if (!newVaultName.trim()) {
       Alert.alert('Error', 'Please enter a vault name');
       return;
@@ -89,13 +63,17 @@ export default function VaultsScreen() {
     }
 
     try {
-      await VaultManager.createVault(newVaultName, newVaultDescription, selectedColor);
+      await createVault({
+        name: newVaultName,
+        description: newVaultDescription,
+        color: selectedColor,
+      });
+      
       await SubscriptionManager.incrementUsage('vault');
       setShowCreateModal(false);
       setNewVaultName('');
       setNewVaultDescription('');
       setSelectedColor('#007AFF');
-      loadVaults();
       SecurityManager.logSecurityEvent('vault_created', { name: newVaultName });
     } catch (error) {
       Alert.alert('Error', 'Failed to create vault');
@@ -118,6 +96,8 @@ export default function VaultsScreen() {
   };
 
   const showVaultOptions = (vault: Vault) => {
+    if (isDeleting || isUpdating) return;
+    
     Alert.alert(
       vault.name,
       'Choose an action',
@@ -130,26 +110,24 @@ export default function VaultsScreen() {
         { 
           text: 'Delete',
           style: 'destructive',
-          onPress: () => deleteVault(vault)
+          onPress: () => handleDeleteVault(vault)
         }
       ]
     );
   };
 
-  const toggleVaultLock = async (vault: Vault) => {
+  const toggleVaultLock = async (vault: any) => {
     try {
-      if (vault.isLocked) {
-        await VaultManager.unlockVault(vault.id);
-      } else {
-        await VaultManager.lockVault(vault.id);
-      }
-      loadVaults();
+      await updateVault({
+        id: vault.id,
+        updates: { isLocked: !vault.isLocked }
+      });
     } catch (error) {
       Alert.alert('Error', 'Failed to toggle vault lock');
     }
   };
 
-  const deleteVault = (vault: Vault) => {
+  const handleDeleteVault = (vault: any) => {
     Alert.alert(
       'Delete Vault',
       `Are you sure you want to delete "${vault.name}"? This action cannot be undone.`,
@@ -160,8 +138,7 @@ export default function VaultsScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              await VaultManager.deleteVault(vault.id);
-              loadVaults();
+              await deleteVault(vault.id);
               SecurityManager.logSecurityEvent('vault_deleted', { vaultId: vault.id });
             } catch (error) {
               Alert.alert('Error', 'Failed to delete vault');
@@ -172,12 +149,42 @@ export default function VaultsScreen() {
     );
   };
 
-  const filteredVaults = vaults.filter(vault => {
-    const matchesSearch = vault.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         vault.description.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesFilter = !filterFavorites || favoriteVaults.has(vault.id);
-    return matchesSearch && matchesFilter;
-  });
+  // Sort and filter vaults
+  const sortedAndFilteredVaults = vaults
+    .filter(vault => {
+      const matchesSearch = vault.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                           (vault.description || '').toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesFilter = !filterFavorites || favoriteVaults.has(vault.id);
+      return matchesSearch && matchesFilter;
+    })
+    .sort((a, b) => {
+      switch (sortBy) {
+        case 'name':
+          return a.name.localeCompare(b.name);
+        case 'photos':
+          return (b.itemCount || 0) - (a.itemCount || 0);
+        case 'date':
+        default:
+          return (b.lastAccessed || 0) - (a.lastAccessed || 0);
+      }
+    });
+
+  if (isLoading) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <Text style={styles.emptyTitle}>Loading vaults...</Text>
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <Text style={styles.emptyTitle}>Error loading vaults</Text>
+        <Text style={styles.emptySubtitle}>Please try again</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -187,8 +194,13 @@ export default function VaultsScreen() {
           <TouchableOpacity
             style={styles.addButton}
             onPress={() => setShowCreateModal(true)}
+            disabled={isCreating}
           >
-            <Plus size={24} color="#FFFFFF" />
+            {isCreating ? (
+              <Text style={{ color: '#FFFFFF', fontSize: 12 }}>...</Text>
+            ) : (
+              <Plus size={24} color="#FFFFFF" />
+            )}
           </TouchableOpacity>
           
           <TouchableOpacity
@@ -237,7 +249,7 @@ export default function VaultsScreen() {
       </View>
 
       <ScrollView style={styles.vaultsList} showsVerticalScrollIndicator={false}>
-        {filteredVaults.map((vault) => (
+        {sortedAndFilteredVaults.map((vault) => (
           <TouchableOpacity
             key={vault.id}
             style={styles.vaultCard}
@@ -264,8 +276,13 @@ export default function VaultsScreen() {
               <TouchableOpacity 
                 style={styles.vaultActions}
                 onPress={() => showVaultOptions(vault)}
+                disabled={isDeleting || isUpdating}
               >
-                <MoreVertical size={20} color="#8E8E93" />
+                {isDeleting ? (
+                  <Text style={{ color: '#8E8E93', fontSize: 12 }}>...</Text>
+                ) : (
+                  <MoreVertical size={20} color="#8E8E93" />
+                )}
               </TouchableOpacity>
             </View>
             
@@ -296,7 +313,7 @@ export default function VaultsScreen() {
           </TouchableOpacity>
         ))}
 
-        {filteredVaults.length === 0 && (
+        {sortedAndFilteredVaults.length === 0 && (
           <View style={styles.emptyState}>
             <FolderOpen size={48} color="#8E8E93" />
             <Text style={styles.emptyTitle}>
@@ -454,10 +471,12 @@ export default function VaultsScreen() {
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.createButton, !newVaultName.trim() && styles.disabledButton]}
-                onPress={createVault}
-                disabled={!newVaultName.trim()}
+                onPress={handleCreateVault}
+                disabled={!newVaultName.trim() || isCreating}
               >
-                <Text style={styles.createButtonText}>Create</Text>
+                <Text style={styles.createButtonText}>
+                  {isCreating ? 'Creating...' : 'Create'}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
